@@ -60,9 +60,9 @@
             border-radius: 8px;
             box-shadow: 0 2px 8px var(--shadow-light);
             padding: 8px 12px;
-            transition: transform 0.4s ease-out, opacity 0.4s ease-out;
+            transition: transform 0.4s ease-out, opacity 0.4s ease-out, background-color 0.4s, border-color 0.4s;
             touch-action: none; /* Prevent default touch actions */
-            border: 2px solid var(--line-color);
+            border-style: solid;
             min-width: 100px;
             box-sizing: border-box;
         }
@@ -107,40 +107,42 @@
         .action-btn {
             width: 32px;
             height: 32px;
-            border-radius: 50%;
-            background-color: white;
-            border: 1px solid #ccc;
+            border: none;
             box-shadow: 0 1px 4px var(--shadow-light);
-            color: var(--text-color);
+            color: white;
             font-size: 20px;
             font-weight: bold;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: transform 0.1s ease;
+            transition: transform 0.1s ease, background-color 0.4s;
+            line-height: 1;
         }
 
         .action-btn:active {
             transform: scale(0.9);
         }
 
-        .add-btn { background-color: #42b72a; color: white; }
-        .del-btn { background-color: #fa383e; color: white; }
-        .note-btn { background-color: #1877f2; color: white; }
+        .add-btn, .del-btn {
+             border-radius: 50%;
+        }
+        .note-btn {
+            border-radius: 4px;
+        }
+
         .note-btn.has-note {
             border: 2px solid white;
-            box-shadow: 0 0 0 2px #1877f2;
+            box-shadow: 0 0 0 2px var(--core-node-color); /* Fallback color */
         }
 
 
         /* --- Line Styling --- */
         .line {
             position: absolute;
-            height: 2px;
             background-color: var(--line-color);
             transform-origin: 0 50%;
-            transition: transform 0.4s ease-out, width 0.4s ease-out, opacity 0.4s ease-out;
+            transition: transform 0.4s ease-out, width 0.4s ease-out, opacity 0.4s ease-out, background-color 0.4s;
             z-index: -1;
         }
 
@@ -271,8 +273,11 @@
             canvasHeight: 8000,
             nodeWidth: 150,
             nodeHeight: 40,
-            hSpacing: 40, // Horizontal spacing between sibling nodes
-            vSpacing: 120, // Vertical spacing between levels
+            hSpacing: 20,
+            vSpacing: [180, 220, 260],
+            levelOffsets: [0, 60, -40, 80, -20],
+            lineThickness: [5, 4, 2],
+            branchColors: ['#e6194B', '#3cb44b', '#4363d8', '#f58231', '#911eb4'], // Red, Green, Blue, Orange, Purple
             animationDuration: '0.4s'
         };
 
@@ -282,12 +287,26 @@
             pan: { x: 0, y: 0, startX: 0, startY: 0, isPanning: false },
             editingNodeId: null,
         };
+        
+        // --- 3. UTILITY FUNCTIONS ---
+        function lightenColor(hex, percent) {
+            if (!hex) return '#ffffff';
+            let r = parseInt(hex.substring(1, 3), 16);
+            let g = parseInt(hex.substring(3, 5), 16);
+            let b = parseInt(hex.substring(5, 7), 16);
 
-        // --- 3. LAYOUT ENGINE ---
+            r = Math.round(r + (255 - r) * (percent / 100));
+            g = Math.round(g + (255 - g) * (percent / 100));
+            b = Math.round(b + (255 - b) * (percent / 100));
+
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+
+
+        // --- 4. LAYOUT ENGINE ---
         function calculateLayout() {
             if (state.nodes.length === 0) return;
             const coreNode = state.nodes[0];
-            // Start the layout calculation from the core node
             positionNodeAndChildren(coreNode.id, config.canvasWidth / 2, 200);
         }
         
@@ -296,7 +315,7 @@
             if (!node) return 0;
 
             node.x = x;
-            node.y = y;
+            node.y = y + node.jitterY;
 
             const children = state.nodes.filter(n => n.parentId === nodeId);
             if (children.length === 0) {
@@ -305,7 +324,7 @@
 
             let totalChildWidth = 0;
             children.forEach(child => {
-                totalChildWidth += positionNodeAndChildren(child.id, 0, 0); // Recursive call to get width
+                totalChildWidth += positionNodeAndChildren(child.id, 0, 0);
             });
             totalChildWidth += (children.length - 1) * config.hSpacing;
 
@@ -313,7 +332,8 @@
             children.forEach(child => {
                 const childSubtreeWidth = getSubtreeWidth(child.id);
                 const childX = currentX + childSubtreeWidth / 2;
-                const childY = y + config.vSpacing;
+                const verticalDrop = config.vSpacing[node.depth] || config.vSpacing[config.vSpacing.length - 1];
+                const childY = y + verticalDrop;
                 positionNodeAndChildren(child.id, childX, childY);
                 currentX += childSubtreeWidth + config.hSpacing;
             });
@@ -334,9 +354,9 @@
         }
 
 
-        // --- 4. RENDERING ENGINE ---
+        // --- 5. RENDERING ENGINE ---
         function render() {
-            canvas.innerHTML = ''; // Clear canvas for full re-render
+            canvas.innerHTML = '';
 
             state.nodes.forEach(node => {
                 const nodeEl = document.createElement('div');
@@ -344,29 +364,57 @@
                 nodeEl.dataset.id = node.id;
                 nodeEl.style.transform = `translate(${node.x - config.nodeWidth / 2}px, ${node.y - config.nodeHeight / 2}px)`;
                 
+                // Apply branch colors and border thickness
+                if (node.depth > 0 && node.branchColor) {
+                    const borderThickness = config.lineThickness[node.depth - 1] || 1;
+                    nodeEl.style.borderWidth = `${borderThickness}px`;
+                    nodeEl.style.borderColor = node.branchColor;
+                    nodeEl.style.backgroundColor = lightenColor(node.branchColor, 90);
+                }
+
                 const textEl = document.createElement('div');
                 textEl.className = 'node-text';
                 textEl.textContent = node.text;
                 textEl.setAttribute('contenteditable', 'false');
                 nodeEl.appendChild(textEl);
                 
-                if (node.depth < 3) {
-                    const actionsEl = document.createElement('div');
-                    actionsEl.className = 'node-actions';
+                const actionsEl = document.createElement('div');
+                actionsEl.className = 'node-actions';
 
-                    const addBtn = createActionButton('+', 'add-btn', () => addChildNode(node.id));
-                    const noteBtn = createActionButton('N', 'note-btn', () => openNoteEditor(node.id));
-                    if (node.note) noteBtn.classList.add('has-note');
-
-                    actionsEl.appendChild(addBtn);
-                    actionsEl.appendChild(noteBtn);
-
-                    if (node.depth > 0) {
-                        const delBtn = createActionButton('-', 'del-btn', () => deleteNode(node.id));
-                        actionsEl.appendChild(delBtn);
+                const children = state.nodes.filter(n => n.parentId === node.id);
+                
+                // Show '+' button if depth is less than 3 AND children are less than 5
+                if (node.depth < 3 && children.length < 5) {
+                    let addBtnColor;
+                    if (node.depth === 0) {
+                        const usedColors = new Set(children.map(c => c.branchColor));
+                        addBtnColor = config.branchColors.find(c => !usedColors.has(c));
+                    } else {
+                        addBtnColor = node.branchColor;
                     }
+                    const addBtn = createActionButton('+', 'add-btn', () => addChildNode(node.id), addBtnColor);
+                    actionsEl.appendChild(addBtn);
+                }
+                
+                // Always show Note button
+                const noteBtnColor = node.branchColor || 'var(--core-node-color)';
+                const noteBtn = createActionButton('N', 'note-btn', () => openNoteEditor(node.id), noteBtnColor);
+                if (node.note) {
+                    noteBtn.classList.add('has-note');
+                    noteBtn.style.boxShadow = `0 0 0 2px ${noteBtnColor}`;
+                }
+                actionsEl.appendChild(noteBtn);
+
+                // Show 'x' button for all nodes except the core one
+                if (node.depth > 0) {
+                    const delBtn = createActionButton('&times;', 'del-btn', () => deleteNode(node.id), node.branchColor);
+                    actionsEl.appendChild(delBtn);
+                }
+                
+                if (actionsEl.children.length > 0) {
                     nodeEl.appendChild(actionsEl);
                 }
+
 
                 canvas.appendChild(nodeEl);
 
@@ -377,14 +425,15 @@
             });
         }
 
-        function createActionButton(text, className, onClick) {
+        function createActionButton(html, className, onClick, color) {
             const btn = document.createElement('button');
             btn.className = `action-btn ${className}`;
-            btn.textContent = text;
+            btn.innerHTML = html;
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 onClick();
             });
+            btn.style.backgroundColor = color || '#6c757d'; // Use provided color or fallback to grey
             return btn;
         }
 
@@ -397,24 +446,48 @@
             const distance = Math.sqrt(dx * dx + dy * dy);
             const angle = Math.atan2(dy, dx) * 180 / Math.PI;
 
+            const thickness = config.lineThickness[sourceNode.depth] || 1;
+            lineEl.style.height = `${thickness}px`;
+
+            if (targetNode.branchColor) {
+                lineEl.style.backgroundColor = targetNode.branchColor;
+            }
+
             lineEl.style.width = `${distance}px`;
             lineEl.style.transform = `translate(${sourceNode.x}px, ${sourceNode.y}px) rotate(${angle}deg)`;
             
             return lineEl;
         }
 
-        // --- 5. CORE LOGIC & ACTIONS ---
-        function createNode(text, parentId, depth) {
+        // --- 6. CORE LOGIC & ACTIONS ---
+        function createNode(text, parentId, depth, siblingIndex) {
             const id = state.nextId++;
             const parent = findNodeById(parentId);
-            return { id, text, parentId, parent, depth, x: 0, y: 0, note: '' };
+            const jitterY = depth > 0 ? config.levelOffsets[siblingIndex % config.levelOffsets.length] : 0;
+            
+            return { id, text, parentId, parent, depth, x: 0, y: 0, note: '', jitterY, branchColor: null };
         }
 
         function addChildNode(parentId) {
             const parentNode = findNodeById(parentId);
             if (!parentNode || parentNode.depth >= 3) return;
 
-            const newNode = createNode('New Idea', parentId, parentNode.depth + 1);
+            const children = state.nodes.filter(n => n.parentId === parentId);
+            if (children.length >= 5) {
+                console.log("Max branches reached for this node.");
+                return;
+            }
+            
+            const siblingIndex = children.length;
+            const newNode = createNode('New Idea', parentId, parentNode.depth + 1, siblingIndex);
+
+            if (newNode.depth === 1) {
+                const usedColors = new Set(children.map(c => c.branchColor));
+                newNode.branchColor = config.branchColors.find(c => !usedColors.has(c));
+            } else if (parentNode) {
+                newNode.branchColor = parentNode.branchColor;
+            }
+
             state.nodes.push(newNode);
             updateAndRender();
         }
@@ -447,9 +520,9 @@
             render();
         }
 
-        // --- 6. TOUCH & PAN/ZOOM HANDLING ---
+        // --- 7. TOUCH & PAN/ZOOM HANDLING ---
         function handleTouchStart(e) {
-            if (e.touches.length > 1 || e.target.classList.contains('node-text') || e.target.classList.contains('action-btn')) {
+            if (e.touches.length > 1 || e.target.closest('.action-btn') || e.target.classList.contains('node-text')) {
                 state.pan.isPanning = false;
                 return;
             }
@@ -466,7 +539,7 @@
             e.preventDefault();
 
             state.pan.x = e.touches[0].clientX - state.pan.startX;
-            state.pan.y = e.touches[0].clientY - state.pan.startY;
+            state.pan.y = e.touches[0].clientY - state.pan.y;
             canvas.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px)`;
         }
 
@@ -489,7 +562,7 @@
             canvas.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px)`;
         }
 
-        // --- 7. NODE EDITING & NOTES ---
+        // --- 8. NODE EDITING & NOTES ---
         function enableEditing(nodeEl, textEl) {
             textEl.setAttribute('contenteditable', 'true');
             textEl.focus();
@@ -500,7 +573,7 @@
                 const nodeId = parseInt(nodeEl.dataset.id, 10);
                 const node = findNodeById(nodeId);
                 if (node) {
-                    node.text = textEl.textContent;
+                    node.text = textEl.textContent || 'New Idea';
                 }
                 textEl.removeEventListener('blur', onBlur);
                 textEl.removeEventListener('keydown', onKeydown);
@@ -538,7 +611,7 @@
             updateAndRender();
         }
 
-        // --- 8. EVENT LISTENERS ---
+        // --- 9. EVENT LISTENERS ---
         viewport.addEventListener('touchstart', handleTouchStart, { passive: false });
         viewport.addEventListener('touchmove', handleTouchMove, { passive: false });
         viewport.addEventListener('touchend', handleTouchEnd);
@@ -568,7 +641,11 @@
         document.getElementById('recenter-btn').addEventListener('click', recenterView);
         document.getElementById('new-btn').addEventListener('click', init);
         document.getElementById('save-btn').addEventListener('click', () => {
-             const dataStr = JSON.stringify({ nodes: state.nodes, nextId: state.nextId }, null, 2);
+             const dataToSave = state.nodes.map(n => ({
+                 id: n.id, text: n.text, parentId: n.parentId, depth: n.depth,
+                 note: n.note, jitterY: n.jitterY, branchColor: n.branchColor
+             }));
+             const dataStr = JSON.stringify({ nodes: dataToSave, nextId: state.nextId }, null, 2);
              const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
              const exportFileDefaultName = 'mindmap.json';
              let linkElement = document.createElement('a');
@@ -588,11 +665,32 @@
                 const data = JSON.parse(contents);
                 state.nodes = data.nodes;
                 state.nextId = data.nextId;
+
+                const nodesByParent = state.nodes.reduce((acc, node) => {
+                    if (node.parentId !== null) {
+                        if (!acc[node.parentId]) acc[node.parentId] = [];
+                        acc[node.parentId].push(node);
+                    }
+                    return acc;
+                }, {});
+
                 state.nodes.forEach(n => {
-                    if (n.parentId !== null) {
-                        n.parent = findNodeById(n.parentId);
+                    if (n.parentId !== null) n.parent = findNodeById(n.parentId);
+                    
+                    if (n.jitterY === undefined) {
+                        const siblings = nodesByParent[n.parentId] || [];
+                        const siblingIndex = siblings.findIndex(s => s.id === n.id);
+                        n.jitterY = config.levelOffsets[siblingIndex % config.levelOffsets.length];
+                    }
+                    if (n.branchColor === undefined && n.depth > 0) {
+                        let ancestor = n;
+                        while(ancestor.depth > 1) ancestor = ancestor.parent;
+                        const mainBranchSiblings = nodesByParent[0] || [];
+                        const mainBranchIndex = mainBranchSiblings.findIndex(s => s.id === ancestor.id);
+                        n.branchColor = config.branchColors[mainBranchIndex % config.branchColors.length];
                     }
                 });
+                
                 updateAndRender();
                 recenterView();
             };
@@ -601,12 +699,12 @@
         });
 
 
-        // --- 9. INITIALIZATION ---
+        // --- 10. INITIALIZATION ---
         function init() {
             state.nodes = [];
             state.nextId = 0;
             
-            const coreNode = createNode('My Big Idea', null, 0);
+            const coreNode = createNode('My Big Idea', null, 0, 0);
             state.nodes.push(coreNode);
             
             addChildNode(coreNode.id);
