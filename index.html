@@ -237,6 +237,10 @@
             lineThickness: [5, 4, 2],
             branchColors: ['#e6194B', '#3cb44b', '#4363d8', '#f58231', '#911eb4'],
             backgroundTints: [55, 70, 85], // Tints for confirmed nodes at depth 1, 2, 3
+            placeholderTexts: [
+                "What next?", "Why this…?", "More ideas…", "New point?", "How come…?",
+                "Links to…", "Dig deeper…", "What if...?", "Explain more…", "So what?"
+            ],
             branchStyles: [
                 { fontFamily: 'Roboto', fontSizes: ['18px', '16px', '15px', '14px'] }, // Core & Fallback
                 { fontFamily: 'Roboto Serif', fontSizes: ['18px', '16px', '15px', '14px'] }, // Branch 1 (Red)
@@ -252,6 +256,7 @@
             nodes: [],
             nextId: 0,
             editingNodeId: null,
+            placeholderIndex: 0,
         };
         
         // --- 3. UTILITY FUNCTIONS ---
@@ -335,7 +340,6 @@
                 textEl.textContent = node.text;
                 textEl.setAttribute('contenteditable', 'false');
                 
-                // Apply branch-specific font styles
                 const style = config.branchStyles[node.branchIndex || 0];
                 textEl.style.fontFamily = style.fontFamily;
                 textEl.style.fontSize = style.fontSizes[node.depth];
@@ -347,8 +351,7 @@
                     nodeEl.style.borderWidth = `${borderThickness}px`;
                     nodeEl.style.borderColor = node.branchColor;
 
-                    // Apply different tints for confirmed vs unconfirmed nodes
-                    if (node.text !== 'New Idea') {
+                    if (node.text !== node.placeholder) {
                         const tint = config.backgroundTints[node.depth - 1] || 85;
                         nodeEl.style.backgroundColor = lightenColor(node.branchColor, tint);
                     } else {
@@ -450,7 +453,17 @@
                 branchIndex = parent.branchIndex;
             }
 
-            return { id, text, parentId, parent, depth, x: 0, y: 0, note: '', jitterY, branchColor, branchIndex };
+            let nodeText, placeholder;
+            if (depth === 0) {
+                nodeText = text;
+                placeholder = text;
+            } else {
+                placeholder = config.placeholderTexts[state.placeholderIndex % config.placeholderTexts.length];
+                state.placeholderIndex++;
+                nodeText = placeholder;
+            }
+
+            return { id, text: nodeText, placeholder, parentId, parent, depth, x: 0, y: 0, note: '', jitterY, branchColor, branchIndex };
         }
 
         function addChildNode(parentId) {
@@ -464,7 +477,7 @@
             }
             
             const siblingIndex = children.length;
-            const newNode = createNode('New Idea', parentId, parentNode.depth + 1, siblingIndex);
+            const newNode = createNode(null, parentId, parentNode.depth + 1, siblingIndex);
             
             state.nodes.push(newNode);
             updateAndRender();
@@ -515,21 +528,27 @@
 
         // --- 8. NODE EDITING & NOTES ---
         function enableEditing(nodeEl, textEl) {
+            const nodeId = parseInt(nodeEl.dataset.id, 10);
+            const node = findNodeById(nodeId);
+            if (!node) return;
+
+            if (textEl.textContent === node.placeholder) {
+                textEl.textContent = '';
+            }
+
             textEl.setAttribute('contenteditable', 'true');
             textEl.focus();
             document.execCommand('selectAll', false, null);
             
             function onBlur() {
                 textEl.setAttribute('contenteditable', 'false');
-                const nodeId = parseInt(nodeEl.dataset.id, 10);
-                const node = findNodeById(nodeId);
                 if (node) {
-                    node.text = textEl.textContent || 'New Idea';
+                    node.text = textEl.textContent.trim() || node.placeholder;
                 }
                 textEl.removeEventListener('blur', onBlur);
                 textEl.removeEventListener('keydown', onKeydown);
                 state.editingNodeId = null;
-                updateAndRender(); // Re-render to apply new styles
+                updateAndRender();
             }
             
             function onKeydown(e) {
@@ -594,6 +613,7 @@
         function init() {
             state.nodes = [];
             state.nextId = 0;
+            state.placeholderIndex = 0;
             
             const coreNode = createNode('My Big Idea', null, 0, 0);
             state.nodes.push(coreNode);
