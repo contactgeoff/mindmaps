@@ -6,7 +6,7 @@
     <title>Mobile Mindmap</title>
     <style>
         /* --- Basic Setup & Typography --- */
-        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Lacquer&family=Roboto+Serif:opsz,wght@8..144,400;8..144,700&family=Roboto+Condensed:wght@400;700&family=Silkscreen&display=swap');
 
         :root {
             --background-color: #f0f2f5;
@@ -75,8 +75,7 @@
             outline: none;
             white-space: nowrap;
             text-align: center;
-            font-size: 16px;
-            min-width: 50px;
+            transition: font-size 0.4s;
         }
 
         .node.depth-0 .node-text {
@@ -236,7 +235,16 @@
             vSpacing: [180, 220, 260],
             levelOffsets: [0, 60, -40, 80, -20],
             lineThickness: [5, 4, 2],
-            branchColors: ['#e6194B', '#3cb44b', '#4363d8', '#f58231', '#911eb4'], // Red, Green, Blue, Orange, Purple
+            branchColors: ['#e6194B', '#3cb44b', '#4363d8', '#f58231', '#911eb4'],
+            backgroundTints: [55, 70, 85], // Tints for confirmed nodes at depth 1, 2, 3
+            branchStyles: [
+                { fontFamily: 'Roboto', fontSizes: ['18px', '16px', '15px', '14px'] }, // Core & Fallback
+                { fontFamily: 'Roboto Serif', fontSizes: ['18px', '16px', '15px', '14px'] }, // Branch 1 (Red)
+                { fontFamily: 'Lacquer', fontSizes: ['20px', '18px', '16px', '14px'] }, // Branch 2 (Green)
+                { fontFamily: 'Roboto Condensed', fontSizes: ['18px', '17px', '16px', '15px'] }, // Branch 3 (Blue)
+                { fontFamily: 'Silkscreen', fontSizes: ['16px', '14px', '13px', '12px'] }, // Branch 4 (Orange)
+                { fontFamily: 'Roboto', fontSizes: ['18px', '16px', '15px', '14px'] }  // Branch 5 (Purple)
+            ],
             animationDuration: '0.4s'
         };
 
@@ -322,18 +330,31 @@
                 nodeEl.dataset.id = node.id;
                 nodeEl.style.transform = `translate(${node.x - config.nodeWidth / 2}px, ${node.y - config.nodeHeight / 2}px)`;
                 
-                if (node.depth > 0 && node.branchColor) {
-                    const borderThickness = config.lineThickness[node.depth - 1] || 1;
-                    nodeEl.style.borderWidth = `${borderThickness}px`;
-                    nodeEl.style.borderColor = node.branchColor;
-                    nodeEl.style.backgroundColor = lightenColor(node.branchColor, 90);
-                }
-
                 const textEl = document.createElement('div');
                 textEl.className = 'node-text';
                 textEl.textContent = node.text;
                 textEl.setAttribute('contenteditable', 'false');
+                
+                // Apply branch-specific font styles
+                const style = config.branchStyles[node.branchIndex || 0];
+                textEl.style.fontFamily = style.fontFamily;
+                textEl.style.fontSize = style.fontSizes[node.depth];
+
                 nodeEl.appendChild(textEl);
+
+                if (node.depth > 0 && node.branchColor) {
+                    const borderThickness = config.lineThickness[node.depth - 1] || 1;
+                    nodeEl.style.borderWidth = `${borderThickness}px`;
+                    nodeEl.style.borderColor = node.branchColor;
+
+                    // Apply different tints for confirmed vs unconfirmed nodes
+                    if (node.text !== 'New Idea') {
+                        const tint = config.backgroundTints[node.depth - 1] || 85;
+                        nodeEl.style.backgroundColor = lightenColor(node.branchColor, tint);
+                    } else {
+                        nodeEl.style.backgroundColor = lightenColor(node.branchColor, 90);
+                    }
+                }
                 
                 const actionsEl = document.createElement('div');
                 actionsEl.className = 'node-actions';
@@ -418,7 +439,18 @@
             const parent = findNodeById(parentId);
             const jitterY = depth > 0 ? config.levelOffsets[siblingIndex % config.levelOffsets.length] : 0;
             
-            return { id, text, parentId, parent, depth, x: 0, y: 0, note: '', jitterY, branchColor: null };
+            let branchColor = null, branchIndex = 0;
+            if (depth === 1) {
+                const usedColors = new Set(state.nodes.filter(n => n.parentId === parentId).map(c => c.branchColor));
+                const availableColor = config.branchColors.find(c => !usedColors.has(c));
+                branchColor = availableColor;
+                branchIndex = config.branchColors.indexOf(availableColor) + 1;
+            } else if (parent) {
+                branchColor = parent.branchColor;
+                branchIndex = parent.branchIndex;
+            }
+
+            return { id, text, parentId, parent, depth, x: 0, y: 0, note: '', jitterY, branchColor, branchIndex };
         }
 
         function addChildNode(parentId) {
@@ -433,14 +465,7 @@
             
             const siblingIndex = children.length;
             const newNode = createNode('New Idea', parentId, parentNode.depth + 1, siblingIndex);
-
-            if (newNode.depth === 1) {
-                const usedColors = new Set(children.map(c => c.branchColor));
-                newNode.branchColor = config.branchColors.find(c => !usedColors.has(c));
-            } else if (parentNode) {
-                newNode.branchColor = parentNode.branchColor;
-            }
-
+            
             state.nodes.push(newNode);
             updateAndRender();
         }
@@ -504,6 +529,7 @@
                 textEl.removeEventListener('blur', onBlur);
                 textEl.removeEventListener('keydown', onKeydown);
                 state.editingNodeId = null;
+                updateAndRender(); // Re-render to apply new styles
             }
             
             function onKeydown(e) {
@@ -563,12 +589,6 @@
                 closeNoteEditor();
             }
         });
-
-        // The button event listeners are removed, but the functions are kept for future use.
-        // document.getElementById('recenter-btn').addEventListener('click', recenterView);
-        // document.getElementById('new-btn').addEventListener('click', init);
-        // document.getElementById('save-btn').addEventListener('click', ...);
-        // document.getElementById('load-btn').addEventListener('click', ...);
         
         // --- 10. INITIALIZATION ---
         function init() {
