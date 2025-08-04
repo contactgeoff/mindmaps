@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>Mobile Mindmap</title>
     <style>
         /* --- Basic Setup & Typography --- */
@@ -175,32 +175,6 @@
         .tool-btn:active {
             background-color: #e9e9e9;
         }
-
-        /* --- Swipe Indicators --- */
-        #swipe-indicator {
-            position: fixed;
-            bottom: 75px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            z-index: 50;
-            pointer-events: none;
-        }
-
-        .dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background-color: #ccc;
-            transition: background-color 0.3s, transform 0.3s;
-        }
-
-        .dot.active {
-            background-color: var(--core-node-color);
-            transform: scale(1.3);
-        }
         
         /* --- Note Editor Modal --- */
         #note-editor-overlay {
@@ -263,10 +237,6 @@
         </div>
     </div>
 
-    <div id="swipe-indicator">
-        <!-- Dots will be injected here -->
-    </div>
-
     <div id="bottom-toolbar">
         <button class="tool-btn" id="save-btn">Save</button>
         <button class="tool-btn" id="load-btn">Load</button>
@@ -293,7 +263,6 @@
         // --- 1. DOM ELEMENT REFERENCES ---
         const viewport = document.getElementById('viewport');
         const canvas = document.getElementById('mindmap-canvas');
-        const swipeIndicator = document.getElementById('swipe-indicator');
         const noteEditorOverlay = document.getElementById('note-editor-overlay');
 
         // --- 2. CONFIGURATION & STATE ---
@@ -302,43 +271,26 @@
             canvasHeight: 8000,
             nodeWidth: 150,
             nodeHeight: 40,
-            hSpacing: 60, // Horizontal spacing between sibling nodes
-            vSpacing: 100, // Vertical spacing between levels
-            branchSpacing: 400, // Horizontal distance between main branches
+            hSpacing: 40, // Horizontal spacing between sibling nodes
+            vSpacing: 120, // Vertical spacing between levels
             animationDuration: '0.4s'
         };
 
         let state = {
             nodes: [],
             nextId: 0,
-            activeBranchIndex: 0,
             pan: { x: 0, y: 0, startX: 0, startY: 0, isPanning: false },
-            swipe: { startX: 0, isSwiping: false, threshold: 50 },
             editingNodeId: null,
         };
 
         // --- 3. LAYOUT ENGINE ---
-        // Calculates the position of all nodes and lines.
         function calculateLayout() {
             if (state.nodes.length === 0) return;
-
             const coreNode = state.nodes[0];
-            const mainBranches = state.nodes.filter(n => n.parentId === coreNode.id);
-
-            // Center the core node horizontally on the canvas
-            coreNode.x = config.canvasWidth / 2;
-            coreNode.y = 200; // Start it near the top
-
-            // Position each main branch and its descendants
-            mainBranches.forEach((branch, branchIndex) => {
-                const branchRootX = coreNode.x + (branchIndex - state.activeBranchIndex) * (config.nodeWidth + config.branchSpacing);
-                const branchRootY = coreNode.y + config.vSpacing;
-                
-                positionNodeAndChildren(branch.id, branchRootX, branchRootY);
-            });
+            // Start the layout calculation from the core node
+            positionNodeAndChildren(coreNode.id, config.canvasWidth / 2, 200);
         }
         
-        // Recursive function to position a node and its children in a tree structure
         function positionNodeAndChildren(nodeId, x, y) {
             const node = findNodeById(nodeId);
             if (!node) return 0;
@@ -348,19 +300,15 @@
 
             const children = state.nodes.filter(n => n.parentId === nodeId);
             if (children.length === 0) {
-                return config.nodeWidth; // Return base width for a single node
+                return config.nodeWidth;
             }
 
-            // Calculate the total width required by all children subtrees
             let totalChildWidth = 0;
             children.forEach(child => {
-                // The width of a child's subtree is calculated recursively
-                const childSubtreeWidth = positionNodeAndChildren(child.id, 0, 0); // Dummy positions for now
-                totalChildWidth += childSubtreeWidth;
+                totalChildWidth += positionNodeAndChildren(child.id, 0, 0); // Recursive call to get width
             });
             totalChildWidth += (children.length - 1) * config.hSpacing;
 
-            // Position the children relative to the parent
             let currentX = x - totalChildWidth / 2;
             children.forEach(child => {
                 const childSubtreeWidth = getSubtreeWidth(child.id);
@@ -373,7 +321,6 @@
             return totalChildWidth;
         }
 
-        // Helper to get the calculated width of a subtree without repositioning
         function getSubtreeWidth(nodeId) {
             const children = state.nodes.filter(n => n.parentId === nodeId);
             if (children.length === 0) {
@@ -388,11 +335,9 @@
 
 
         // --- 4. RENDERING ENGINE ---
-        // Updates the DOM to reflect the current state.
         function render() {
             canvas.innerHTML = ''; // Clear canvas for full re-render
 
-            // Render Nodes
             state.nodes.forEach(node => {
                 const nodeEl = document.createElement('div');
                 nodeEl.className = `node depth-${node.depth}`;
@@ -405,8 +350,7 @@
                 textEl.setAttribute('contenteditable', 'false');
                 nodeEl.appendChild(textEl);
                 
-                // Add action buttons
-                if (node.depth < 3) { // Max depth check
+                if (node.depth < 3) {
                     const actionsEl = document.createElement('div');
                     actionsEl.className = 'node-actions';
 
@@ -426,14 +370,11 @@
 
                 canvas.appendChild(nodeEl);
 
-                // Render line to parent
                 if (node.parent) {
                     const lineEl = createLine(node.parent, node);
                     canvas.appendChild(lineEl);
                 }
             });
-
-            updateSwipeIndicator();
         }
 
         function createActionButton(text, className, onClick) {
@@ -462,20 +403,6 @@
             return lineEl;
         }
 
-        function updateSwipeIndicator() {
-            swipeIndicator.innerHTML = '';
-            const mainBranches = state.nodes.filter(n => n.parentId === 0);
-            mainBranches.forEach((_, index) => {
-                const dot = document.createElement('div');
-                dot.className = 'dot';
-                if (index === state.activeBranchIndex) {
-                    dot.classList.add('active');
-                }
-                swipeIndicator.appendChild(dot);
-            });
-        }
-
-
         // --- 5. CORE LOGIC & ACTIONS ---
         function createNode(text, parentId, depth) {
             const id = state.nextId++;
@@ -489,19 +416,11 @@
 
             const newNode = createNode('New Idea', parentId, parentNode.depth + 1);
             state.nodes.push(newNode);
-            
-            // If adding a child to the core node, adjust active branch if needed
-            if (parentId === 0) {
-                const mainBranches = state.nodes.filter(n => n.parentId === 0);
-                state.activeBranchIndex = mainBranches.length - 1;
-                panToActiveBranch();
-            }
-
             updateAndRender();
         }
 
         function deleteNode(nodeId) {
-            if (nodeId === 0) return; // Cannot delete core node
+            if (nodeId === 0) return;
 
             let nodesToDelete = new Set([nodeId]);
             let queue = [nodeId];
@@ -516,14 +435,6 @@
             }
 
             state.nodes = state.nodes.filter(n => !nodesToDelete.has(n.id));
-            
-            // Adjust active branch if the deleted node was a main branch
-            const mainBranches = state.nodes.filter(n => n.parentId === 0);
-            if (state.activeBranchIndex >= mainBranches.length) {
-                state.activeBranchIndex = Math.max(0, mainBranches.length - 1);
-                panToActiveBranch();
-            }
-
             updateAndRender();
         }
 
@@ -536,82 +447,53 @@
             render();
         }
 
-        // --- 6. TOUCH & PAN/ZOOM/SWIPE HANDLING ---
+        // --- 6. TOUCH & PAN/ZOOM HANDLING ---
         function handleTouchStart(e) {
-            if (e.target.classList.contains('node-text') || e.target.classList.contains('action-btn')) return;
+            if (e.touches.length > 1 || e.target.classList.contains('node-text') || e.target.classList.contains('action-btn')) {
+                state.pan.isPanning = false;
+                return;
+            }
             e.preventDefault();
             
             state.pan.startX = e.touches[0].clientX - state.pan.x;
             state.pan.startY = e.touches[0].clientY - state.pan.y;
-            state.swipe.startX = e.touches[0].clientX;
             state.pan.isPanning = true;
-            state.swipe.isSwiping = true;
             canvas.style.transition = 'none';
         }
 
         function handleTouchMove(e) {
-            if (!state.pan.isPanning) return;
+            if (!state.pan.isPanning || e.touches.length > 1) return;
             e.preventDefault();
 
-            const currentX = e.touches[0].clientX;
-            const dx = currentX - state.swipe.startX;
-
-            // Simple swipe detection
-            if (state.swipe.isSwiping && Math.abs(dx) > state.swipe.threshold) {
-                if (dx > 0) { // Swipe Right
-                    state.activeBranchIndex = Math.max(0, state.activeBranchIndex - 1);
-                } else { // Swipe Left
-                    const mainBranches = state.nodes.filter(n => n.parentId === 0);
-                    state.activeBranchIndex = Math.min(mainBranches.length - 1, state.activeBranchIndex + 1);
-                }
-                panToActiveBranch();
-                state.swipe.isSwiping = false; // Prevent multiple swipes in one gesture
-                state.pan.isPanning = false; // Stop panning on swipe
-                return;
-            }
-            
-            // If not swiping, then pan
-            if (!state.swipe.isSwiping) {
-                state.pan.x = e.touches[0].clientX - state.pan.startX;
-                state.pan.y = e.touches[0].clientY - state.pan.startY;
-                canvas.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px)`;
-            }
+            state.pan.x = e.touches[0].clientX - state.pan.startX;
+            state.pan.y = e.touches[0].clientY - state.pan.startY;
+            canvas.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px)`;
         }
 
         function handleTouchEnd(e) {
             state.pan.isPanning = false;
-            state.swipe.isSwiping = false;
-            canvas.style.transition = config.animationDuration;
+            canvas.style.transition = `transform ${config.animationDuration} ease`;
         }
         
-        function panToActiveBranch() {
+        function recenterView() {
             const coreNode = state.nodes[0];
-            const mainBranches = state.nodes.filter(n => n.parentId === coreNode.id);
-            const activeBranch = mainBranches[state.activeBranchIndex];
-            
-            let targetX, targetY;
-            if (activeBranch) {
-                targetX = (window.innerWidth / 2) - activeBranch.x;
-                targetY = (window.innerHeight / 4) - activeBranch.y;
-            } else { // Recenter on core node if no branches
-                targetX = (window.innerWidth / 2) - coreNode.x;
-                targetY = (window.innerHeight / 4) - coreNode.y;
-            }
+            if (!coreNode) return;
+
+            const targetX = (window.innerWidth / 2) - coreNode.x;
+            const targetY = (window.innerHeight / 4) - coreNode.y;
 
             state.pan.x = targetX;
             state.pan.y = targetY;
             
             canvas.style.transition = `transform ${config.animationDuration} cubic-bezier(0.25, 1, 0.5, 1)`;
             canvas.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px)`;
-            
-            updateAndRender();
         }
 
         // --- 7. NODE EDITING & NOTES ---
         function enableEditing(nodeEl, textEl) {
             textEl.setAttribute('contenteditable', 'true');
             textEl.focus();
-            document.execCommand('selectAll', false, null); // Select all text
+            document.execCommand('selectAll', false, null);
             
             function onBlur() {
                 textEl.setAttribute('contenteditable', 'false');
@@ -653,15 +535,14 @@
             }
             noteEditorOverlay.style.display = 'none';
             state.editingNodeId = null;
-            updateAndRender(); // Re-render to show .has-note class if needed
+            updateAndRender();
         }
 
         // --- 8. EVENT LISTENERS ---
-        viewport.addEventListener('touchstart', handleTouchStart);
-        viewport.addEventListener('touchmove', handleTouchMove);
+        viewport.addEventListener('touchstart', handleTouchStart, { passive: false });
+        viewport.addEventListener('touchmove', handleTouchMove, { passive: false });
         viewport.addEventListener('touchend', handleTouchEnd);
 
-        // Double-tap to edit
         let lastTap = 0;
         canvas.addEventListener('touchend', (e) => {
             const target = e.target;
@@ -677,7 +558,6 @@
             }
         });
         
-        // Note editor close buttons
         noteEditorOverlay.querySelector('.note-header-close').addEventListener('click', closeNoteEditor);
         noteEditorOverlay.addEventListener('click', (e) => {
             if (e.target === noteEditorOverlay) {
@@ -685,8 +565,7 @@
             }
         });
 
-        // Bottom toolbar buttons
-        document.getElementById('recenter-btn').addEventListener('click', panToActiveBranch);
+        document.getElementById('recenter-btn').addEventListener('click', recenterView);
         document.getElementById('new-btn').addEventListener('click', init);
         document.getElementById('save-btn').addEventListener('click', () => {
              const dataStr = JSON.stringify({ nodes: state.nodes, nextId: state.nextId }, null, 2);
@@ -709,17 +588,16 @@
                 const data = JSON.parse(contents);
                 state.nodes = data.nodes;
                 state.nextId = data.nextId;
-                state.activeBranchIndex = 0;
-                // Re-establish parent links
                 state.nodes.forEach(n => {
                     if (n.parentId !== null) {
                         n.parent = findNodeById(n.parentId);
                     }
                 });
-                panToActiveBranch();
+                updateAndRender();
+                recenterView();
             };
             reader.readAsText(file);
-            e.target.value = ''; // Reset input
+            e.target.value = '';
         });
 
 
@@ -727,18 +605,15 @@
         function init() {
             state.nodes = [];
             state.nextId = 0;
-            state.activeBranchIndex = 0;
             
             const coreNode = createNode('My Big Idea', null, 0);
             state.nodes.push(coreNode);
             
-            // Add a couple of default branches to demonstrate swiping
             addChildNode(coreNode.id);
             addChildNode(coreNode.id);
             
-            state.activeBranchIndex = 0; // Start on the first branch
-            calculateLayout();
-            panToActiveBranch(); // This also calls render
+            updateAndRender();
+            recenterView();
         }
 
         init();
