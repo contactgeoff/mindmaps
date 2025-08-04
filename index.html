@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Mobile Mindmap</title>
+    <style>
+        /* --- Basic Setup & Typography --- */
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+
+        :root {
+            --background-color: #f0f2f5;
+            --node-background: #ffffff;
+            --core-node-color: #4B0082; /* Mulberry Purple */
+            --bottom-bar-color: #ffffff;
+            --text-color: #1c1e21;
+            --line-color: #aeb4be;
+            --shadow-light: rgba(0, 0, 0, 0.1);
+            --shadow-medium: rgba(0, 0, 0, 0.2);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--background-color);
+            overflow: hidden; /* Critical for controlling pan/zoom */
+            position: fixed; /* Prevents pull-to-refresh issues */
+        }
+
+        /* --- Main App Containers --- */
+        #viewport {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        #mindmap-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 5000px; /* Large canvas for panning */
+            height: 8000px;
+            transform-origin: 0 0;
+            transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        /* --- Node Styling --- */
+        .node {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--node-background);
+            border-radius: 8px;
+            box-shadow: 0 2px 8px var(--shadow-light);
+            padding: 8px 12px;
+            transition: transform 0.4s ease-out, opacity 0.4s ease-out;
+            touch-action: none; /* Prevent default touch actions */
+            border: 2px solid var(--line-color);
+            min-width: 100px;
+            box-sizing: border-box;
+        }
+
+        .node.depth-0 {
+            background-color: var(--core-node-color);
+            color: white;
+            border: none;
+            padding: 12px 18px;
+            z-index: 10;
+        }
+
+        .node-text {
+            outline: none;
+            white-space: nowrap;
+            text-align: center;
+            font-size: 16px;
+            min-width: 50px;
+        }
+
+        .node.depth-0 .node-text {
+            font-size: 18px;
+            font-weight: 700;
+        }
+        
+        /* --- Node Action Buttons --- */
+        .node-actions {
+            position: absolute;
+            bottom: -35px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            z-index: 5;
+        }
+
+        .node.depth-0 .node-actions {
+            bottom: auto;
+            top: -45px;
+        }
+        
+        .action-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background-color: white;
+            border: 1px solid #ccc;
+            box-shadow: 0 1px 4px var(--shadow-light);
+            color: var(--text-color);
+            font-size: 20px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.1s ease;
+        }
+
+        .action-btn:active {
+            transform: scale(0.9);
+        }
+
+        .add-btn { background-color: #42b72a; color: white; }
+        .del-btn { background-color: #fa383e; color: white; }
+        .note-btn { background-color: #1877f2; color: white; }
+        .note-btn.has-note {
+            border: 2px solid white;
+            box-shadow: 0 0 0 2px #1877f2;
+        }
+
+
+        /* --- Line Styling --- */
+        .line {
+            position: absolute;
+            height: 2px;
+            background-color: var(--line-color);
+            transform-origin: 0 50%;
+            transition: transform 0.4s ease-out, width 0.4s ease-out, opacity 0.4s ease-out;
+            z-index: -1;
+        }
+
+        /* --- Bottom Toolbar --- */
+        #bottom-toolbar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background-color: var(--bottom-bar-color);
+            box-shadow: 0 -2px 10px var(--shadow-medium);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 100;
+            padding: 0 10px;
+            padding-bottom: env(safe-area-inset-bottom); /* For iPhone X notch */
+        }
+
+        .tool-btn {
+            background: none;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .tool-btn:active {
+            background-color: #e9e9e9;
+        }
+
+        /* --- Swipe Indicators --- */
+        #swipe-indicator {
+            position: fixed;
+            bottom: 75px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            z-index: 50;
+            pointer-events: none;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #ccc;
+            transition: background-color 0.3s, transform 0.3s;
+        }
+
+        .dot.active {
+            background-color: var(--core-node-color);
+            transform: scale(1.3);
+        }
+        
+        /* --- Note Editor Modal --- */
+        #note-editor-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 200;
+            display: none; /* Initially hidden */
+            align-items: center;
+            justify-content: center;
+        }
+
+        #note-editor {
+            width: 90%;
+            height: 70%;
+            max-width: 500px;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .note-header {
+            padding: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .note-header-close {
+            font-size: 24px;
+            cursor: pointer;
+            color: #888;
+        }
+
+        .note-content {
+            flex-grow: 1;
+            padding: 15px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            font-size: 16px;
+            line-height: 1.6;
+            outline: none;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="viewport">
+        <div id="mindmap-canvas">
+            <!-- Nodes and lines will be injected here by JavaScript -->
+        </div>
+    </div>
+
+    <div id="swipe-indicator">
+        <!-- Dots will be injected here -->
+    </div>
+
+    <div id="bottom-toolbar">
+        <button class="tool-btn" id="save-btn">Save</button>
+        <button class="tool-btn" id="load-btn">Load</button>
+        <button class="tool-btn" id="new-btn">New</button>
+        <button class="tool-btn" id="recenter-btn">Re-center</button>
+    </div>
+
+    <div id="note-editor-overlay">
+        <div id="note-editor">
+            <div class="note-header">
+                <span id="note-title">Edit Note</span>
+                <span class="note-header-close">&times;</span>
+            </div>
+            <div id="note-content" class="note-content" contenteditable="true"></div>
+        </div>
+    </div>
+
+    <!-- Hidden file input for loading -->
+    <input type="file" id="file-input" style="display: none;" accept=".json">
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        // --- 1. DOM ELEMENT REFERENCES ---
+        const viewport = document.getElementById('viewport');
+        const canvas = document.getElementById('mindmap-canvas');
+        const swipeIndicator = document.getElementById('swipe-indicator');
+        const noteEditorOverlay = document.getElementById('note-editor-overlay');
+
+        // --- 2. CONFIGURATION & STATE ---
+        const config = {
+            canvasWidth: 5000,
+            canvasHeight: 8000,
+            nodeWidth: 150,
+            nodeHeight: 40,
+            hSpacing: 60, // Horizontal spacing between sibling nodes
+            vSpacing: 100, // Vertical spacing between levels
+            branchSpacing: 400, // Horizontal distance between main branches
+            animationDuration: '0.4s'
+        };
+
+        let state = {
+            nodes: [],
+            nextId: 0,
+            activeBranchIndex: 0,
+            pan: { x: 0, y: 0, startX: 0, startY: 0, isPanning: false },
+            swipe: { startX: 0, isSwiping: false, threshold: 50 },
+            editingNodeId: null,
+        };
+
+        // --- 3. LAYOUT ENGINE ---
+        // Calculates the position of all nodes and lines.
+        function calculateLayout() {
+            if (state.nodes.length === 0) return;
+
+            const coreNode = state.nodes[0];
+            const mainBranches = state.nodes.filter(n => n.parentId === coreNode.id);
+
+            // Center the core node horizontally on the canvas
+            coreNode.x = config.canvasWidth / 2;
+            coreNode.y = 200; // Start it near the top
+
+            // Position each main branch and its descendants
+            mainBranches.forEach((branch, branchIndex) => {
+                const branchRootX = coreNode.x + (branchIndex - state.activeBranchIndex) * (config.nodeWidth + config.branchSpacing);
+                const branchRootY = coreNode.y + config.vSpacing;
+                
+                positionNodeAndChildren(branch.id, branchRootX, branchRootY);
+            });
+        }
+        
+        // Recursive function to position a node and its children in a tree structure
+        function positionNodeAndChildren(nodeId, x, y) {
+            const node = findNodeById(nodeId);
+            if (!node) return 0;
+
+            node.x = x;
+            node.y = y;
+
+            const children = state.nodes.filter(n => n.parentId === nodeId);
+            if (children.length === 0) {
+                return config.nodeWidth; // Return base width for a single node
+            }
+
+            // Calculate the total width required by all children subtrees
+            let totalChildWidth = 0;
+            children.forEach(child => {
+                // The width of a child's subtree is calculated recursively
+                const childSubtreeWidth = positionNodeAndChildren(child.id, 0, 0); // Dummy positions for now
+                totalChildWidth += childSubtreeWidth;
+            });
+            totalChildWidth += (children.length - 1) * config.hSpacing;
+
+            // Position the children relative to the parent
+            let currentX = x - totalChildWidth / 2;
+            children.forEach(child => {
+                const childSubtreeWidth = getSubtreeWidth(child.id);
+                const childX = currentX + childSubtreeWidth / 2;
+                const childY = y + config.vSpacing;
+                positionNodeAndChildren(child.id, childX, childY);
+                currentX += childSubtreeWidth + config.hSpacing;
+            });
+
+            return totalChildWidth;
+        }
+
+        // Helper to get the calculated width of a subtree without repositioning
+        function getSubtreeWidth(nodeId) {
+            const children = state.nodes.filter(n => n.parentId === nodeId);
+            if (children.length === 0) {
+                return config.nodeWidth;
+            }
+            let totalWidth = 0;
+            children.forEach(child => {
+                totalWidth += getSubtreeWidth(child.id);
+            });
+            return totalWidth + (children.length - 1) * config.hSpacing;
+        }
+
+
+        // --- 4. RENDERING ENGINE ---
+        // Updates the DOM to reflect the current state.
+        function render() {
+            canvas.innerHTML = ''; // Clear canvas for full re-render
+
+            // Render Nodes
+            state.nodes.forEach(node => {
+                const nodeEl = document.createElement('div');
+                nodeEl.className = `node depth-${node.depth}`;
+                nodeEl.dataset.id = node.id;
+                nodeEl.style.transform = `translate(${node.x - config.nodeWidth / 2}px, ${node.y - config.nodeHeight / 2}px)`;
+                
+                const textEl = document.createElement('div');
+                textEl.className = 'node-text';
+                textEl.textContent = node.text;
+                textEl.setAttribute('contenteditable', 'false');
+                nodeEl.appendChild(textEl);
+                
+                // Add action buttons
+                if (node.depth < 3) { // Max depth check
+                    const actionsEl = document.createElement('div');
+                    actionsEl.className = 'node-actions';
+
+                    const addBtn = createActionButton('+', 'add-btn', () => addChildNode(node.id));
+                    const noteBtn = createActionButton('N', 'note-btn', () => openNoteEditor(node.id));
+                    if (node.note) noteBtn.classList.add('has-note');
+
+                    actionsEl.appendChild(addBtn);
+                    actionsEl.appendChild(noteBtn);
+
+                    if (node.depth > 0) {
+                        const delBtn = createActionButton('-', 'del-btn', () => deleteNode(node.id));
+                        actionsEl.appendChild(delBtn);
+                    }
+                    nodeEl.appendChild(actionsEl);
+                }
+
+                canvas.appendChild(nodeEl);
+
+                // Render line to parent
+                if (node.parent) {
+                    const lineEl = createLine(node.parent, node);
+                    canvas.appendChild(lineEl);
+                }
+            });
+
+            updateSwipeIndicator();
+        }
+
+        function createActionButton(text, className, onClick) {
+            const btn = document.createElement('button');
+            btn.className = `action-btn ${className}`;
+            btn.textContent = text;
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                onClick();
+            });
+            return btn;
+        }
+
+        function createLine(sourceNode, targetNode) {
+            const lineEl = document.createElement('div');
+            lineEl.className = 'line';
+
+            const dx = targetNode.x - sourceNode.x;
+            const dy = targetNode.y - sourceNode.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+            lineEl.style.width = `${distance}px`;
+            lineEl.style.transform = `translate(${sourceNode.x}px, ${sourceNode.y}px) rotate(${angle}deg)`;
+            
+            return lineEl;
+        }
+
+        function updateSwipeIndicator() {
+            swipeIndicator.innerHTML = '';
+            const mainBranches = state.nodes.filter(n => n.parentId === 0);
+            mainBranches.forEach((_, index) => {
+                const dot = document.createElement('div');
+                dot.className = 'dot';
+                if (index === state.activeBranchIndex) {
+                    dot.classList.add('active');
+                }
+                swipeIndicator.appendChild(dot);
+            });
+        }
+
+
+        // --- 5. CORE LOGIC & ACTIONS ---
+        function createNode(text, parentId, depth) {
+            const id = state.nextId++;
+            const parent = findNodeById(parentId);
+            return { id, text, parentId, parent, depth, x: 0, y: 0, note: '' };
+        }
+
+        function addChildNode(parentId) {
+            const parentNode = findNodeById(parentId);
+            if (!parentNode || parentNode.depth >= 3) return;
+
+            const newNode = createNode('New Idea', parentId, parentNode.depth + 1);
+            state.nodes.push(newNode);
+            
+            // If adding a child to the core node, adjust active branch if needed
+            if (parentId === 0) {
+                const mainBranches = state.nodes.filter(n => n.parentId === 0);
+                state.activeBranchIndex = mainBranches.length - 1;
+                panToActiveBranch();
+            }
+
+            updateAndRender();
+        }
+
+        function deleteNode(nodeId) {
+            if (nodeId === 0) return; // Cannot delete core node
+
+            let nodesToDelete = new Set([nodeId]);
+            let queue = [nodeId];
+
+            while(queue.length > 0) {
+                const currentId = queue.shift();
+                const children = state.nodes.filter(n => n.parentId === currentId);
+                children.forEach(child => {
+                    nodesToDelete.add(child.id);
+                    queue.push(child.id);
+                });
+            }
+
+            state.nodes = state.nodes.filter(n => !nodesToDelete.has(n.id));
+            
+            // Adjust active branch if the deleted node was a main branch
+            const mainBranches = state.nodes.filter(n => n.parentId === 0);
+            if (state.activeBranchIndex >= mainBranches.length) {
+                state.activeBranchIndex = Math.max(0, mainBranches.length - 1);
+                panToActiveBranch();
+            }
+
+            updateAndRender();
+        }
+
+        function findNodeById(id) {
+            return state.nodes.find(n => n.id === id) || null;
+        }
+
+        function updateAndRender() {
+            calculateLayout();
+            render();
+        }
+
+        // --- 6. TOUCH & PAN/ZOOM/SWIPE HANDLING ---
+        function handleTouchStart(e) {
+            if (e.target.classList.contains('node-text') || e.target.classList.contains('action-btn')) return;
+            e.preventDefault();
+            
+            state.pan.startX = e.touches[0].clientX - state.pan.x;
+            state.pan.startY = e.touches[0].clientY - state.pan.y;
+            state.swipe.startX = e.touches[0].clientX;
+            state.pan.isPanning = true;
+            state.swipe.isSwiping = true;
+            canvas.style.transition = 'none';
+        }
+
+        function handleTouchMove(e) {
+            if (!state.pan.isPanning) return;
+            e.preventDefault();
+
+            const currentX = e.touches[0].clientX;
+            const dx = currentX - state.swipe.startX;
+
+            // Simple swipe detection
+            if (state.swipe.isSwiping && Math.abs(dx) > state.swipe.threshold) {
+                if (dx > 0) { // Swipe Right
+                    state.activeBranchIndex = Math.max(0, state.activeBranchIndex - 1);
+                } else { // Swipe Left
+                    const mainBranches = state.nodes.filter(n => n.parentId === 0);
+                    state.activeBranchIndex = Math.min(mainBranches.length - 1, state.activeBranchIndex + 1);
+                }
+                panToActiveBranch();
+                state.swipe.isSwiping = false; // Prevent multiple swipes in one gesture
+                state.pan.isPanning = false; // Stop panning on swipe
+                return;
+            }
+            
+            // If not swiping, then pan
+            if (!state.swipe.isSwiping) {
+                state.pan.x = e.touches[0].clientX - state.pan.startX;
+                state.pan.y = e.touches[0].clientY - state.pan.startY;
+                canvas.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px)`;
+            }
+        }
+
+        function handleTouchEnd(e) {
+            state.pan.isPanning = false;
+            state.swipe.isSwiping = false;
+            canvas.style.transition = config.animationDuration;
+        }
+        
+        function panToActiveBranch() {
+            const coreNode = state.nodes[0];
+            const mainBranches = state.nodes.filter(n => n.parentId === coreNode.id);
+            const activeBranch = mainBranches[state.activeBranchIndex];
+            
+            let targetX, targetY;
+            if (activeBranch) {
+                targetX = (window.innerWidth / 2) - activeBranch.x;
+                targetY = (window.innerHeight / 4) - activeBranch.y;
+            } else { // Recenter on core node if no branches
+                targetX = (window.innerWidth / 2) - coreNode.x;
+                targetY = (window.innerHeight / 4) - coreNode.y;
+            }
+
+            state.pan.x = targetX;
+            state.pan.y = targetY;
+            
+            canvas.style.transition = `transform ${config.animationDuration} cubic-bezier(0.25, 1, 0.5, 1)`;
+            canvas.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px)`;
+            
+            updateAndRender();
+        }
+
+        // --- 7. NODE EDITING & NOTES ---
+        function enableEditing(nodeEl, textEl) {
+            textEl.setAttribute('contenteditable', 'true');
+            textEl.focus();
+            document.execCommand('selectAll', false, null); // Select all text
+            
+            function onBlur() {
+                textEl.setAttribute('contenteditable', 'false');
+                const nodeId = parseInt(nodeEl.dataset.id, 10);
+                const node = findNodeById(nodeId);
+                if (node) {
+                    node.text = textEl.textContent;
+                }
+                textEl.removeEventListener('blur', onBlur);
+                textEl.removeEventListener('keydown', onKeydown);
+                state.editingNodeId = null;
+            }
+            
+            function onKeydown(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    textEl.blur();
+                }
+            }
+            
+            textEl.addEventListener('blur', onBlur);
+            textEl.addEventListener('keydown', onKeydown);
+        }
+
+        function openNoteEditor(nodeId) {
+            state.editingNodeId = nodeId;
+            const node = findNodeById(nodeId);
+            if (!node) return;
+            
+            document.getElementById('note-title').textContent = `Note for: ${node.text}`;
+            document.getElementById('note-content').innerHTML = node.note;
+            noteEditorOverlay.style.display = 'flex';
+        }
+
+        function closeNoteEditor() {
+            const node = findNodeById(state.editingNodeId);
+            if (node) {
+                node.note = document.getElementById('note-content').innerHTML;
+            }
+            noteEditorOverlay.style.display = 'none';
+            state.editingNodeId = null;
+            updateAndRender(); // Re-render to show .has-note class if needed
+        }
+
+        // --- 8. EVENT LISTENERS ---
+        viewport.addEventListener('touchstart', handleTouchStart);
+        viewport.addEventListener('touchmove', handleTouchMove);
+        viewport.addEventListener('touchend', handleTouchEnd);
+
+        // Double-tap to edit
+        let lastTap = 0;
+        canvas.addEventListener('touchend', (e) => {
+            const target = e.target;
+            if (target.classList.contains('node-text')) {
+                const currentTime = new Date().getTime();
+                const tapLength = currentTime - lastTap;
+                if (tapLength < 300 && tapLength > 0) {
+                    const nodeEl = target.closest('.node');
+                    enableEditing(nodeEl, target);
+                    e.preventDefault();
+                }
+                lastTap = currentTime;
+            }
+        });
+        
+        // Note editor close buttons
+        noteEditorOverlay.querySelector('.note-header-close').addEventListener('click', closeNoteEditor);
+        noteEditorOverlay.addEventListener('click', (e) => {
+            if (e.target === noteEditorOverlay) {
+                closeNoteEditor();
+            }
+        });
+
+        // Bottom toolbar buttons
+        document.getElementById('recenter-btn').addEventListener('click', panToActiveBranch);
+        document.getElementById('new-btn').addEventListener('click', init);
+        document.getElementById('save-btn').addEventListener('click', () => {
+             const dataStr = JSON.stringify({ nodes: state.nodes, nextId: state.nextId }, null, 2);
+             const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+             const exportFileDefaultName = 'mindmap.json';
+             let linkElement = document.createElement('a');
+             linkElement.setAttribute('href', dataUri);
+             linkElement.setAttribute('download', exportFileDefaultName);
+             linkElement.click();
+        });
+        document.getElementById('load-btn').addEventListener('click', () => {
+            document.getElementById('file-input').click();
+        });
+        document.getElementById('file-input').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const contents = e.target.result;
+                const data = JSON.parse(contents);
+                state.nodes = data.nodes;
+                state.nextId = data.nextId;
+                state.activeBranchIndex = 0;
+                // Re-establish parent links
+                state.nodes.forEach(n => {
+                    if (n.parentId !== null) {
+                        n.parent = findNodeById(n.parentId);
+                    }
+                });
+                panToActiveBranch();
+            };
+            reader.readAsText(file);
+            e.target.value = ''; // Reset input
+        });
+
+
+        // --- 9. INITIALIZATION ---
+        function init() {
+            state.nodes = [];
+            state.nextId = 0;
+            state.activeBranchIndex = 0;
+            
+            const coreNode = createNode('My Big Idea', null, 0);
+            state.nodes.push(coreNode);
+            
+            // Add a couple of default branches to demonstrate swiping
+            addChildNode(coreNode.id);
+            addChildNode(coreNode.id);
+            
+            state.activeBranchIndex = 0; // Start on the first branch
+            calculateLayout();
+            panToActiveBranch(); // This also calls render
+        }
+
+        init();
+    });
+    </script>
+</body>
+</html>
