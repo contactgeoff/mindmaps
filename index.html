@@ -141,38 +141,6 @@
             transition: transform 0.4s ease-out, width 0.4s ease-out, opacity 0.4s ease-out, background-color 0.4s;
             z-index: -1;
         }
-
-        /* --- Bottom Toolbar --- */
-        #bottom-toolbar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 60px;
-            background-color: var(--bottom-bar-color);
-            box-shadow: 0 -2px 10px var(--shadow-medium);
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            z-index: 100;
-            padding: 0 10px;
-            padding-bottom: env(safe-area-inset-bottom); /* For iPhone X notch */
-        }
-
-        .tool-btn {
-            background: none;
-            border: none;
-            font-size: 14px;
-            font-weight: 600;
-            color: #333;
-            padding: 8px 12px;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        .tool-btn:active {
-            background-color: #e9e9e9;
-        }
         
         /* --- Note Editor Modal --- */
         #note-editor-overlay {
@@ -235,12 +203,7 @@
         </div>
     </div>
 
-    <div id="bottom-toolbar">
-        <button class="tool-btn" id="save-btn">Save</button>
-        <button class="tool-btn" id="load-btn">Load</button>
-        <button class="tool-btn" id="new-btn">New</button>
-        <button class="tool-btn" id="recenter-btn">Re-center</button>
-    </div>
+    <!-- The bottom toolbar has been removed to allow for full-page zooming -->
 
     <div id="note-editor-overlay">
         <div id="note-editor">
@@ -577,7 +540,6 @@
         // --- 9. EVENT LISTENERS ---
         let lastTap = 0;
         canvas.addEventListener('touchend', (e) => {
-            // Prevent interference with button clicks
             if (e.target.closest('.action-btn')) {
                 return;
             }
@@ -602,67 +564,12 @@
             }
         });
 
-        document.getElementById('recenter-btn').addEventListener('click', recenterView);
-        document.getElementById('new-btn').addEventListener('click', init);
-        document.getElementById('save-btn').addEventListener('click', () => {
-             const dataToSave = state.nodes.map(n => ({
-                 id: n.id, text: n.text, parentId: n.parentId, depth: n.depth,
-                 note: n.note, jitterY: n.jitterY, branchColor: n.branchColor
-             }));
-             const dataStr = JSON.stringify({ nodes: dataToSave, nextId: state.nextId }, null, 2);
-             const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-             const exportFileDefaultName = 'mindmap.json';
-             let linkElement = document.createElement('a');
-             linkElement.setAttribute('href', dataUri);
-             linkElement.setAttribute('download', exportFileDefaultName);
-             linkElement.click();
-        });
-        document.getElementById('load-btn').addEventListener('click', () => {
-            document.getElementById('file-input').click();
-        });
-        document.getElementById('file-input').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const contents = e.target.result;
-                const data = JSON.parse(contents);
-                state.nodes = data.nodes;
-                state.nextId = data.nextId;
-
-                const nodesByParent = state.nodes.reduce((acc, node) => {
-                    if (node.parentId !== null) {
-                        if (!acc[node.parentId]) acc[node.parentId] = [];
-                        acc[node.parentId].push(node);
-                    }
-                    return acc;
-                }, {});
-
-                state.nodes.forEach(n => {
-                    if (n.parentId !== null) n.parent = findNodeById(n.parentId);
-                    
-                    if (n.jitterY === undefined) {
-                        const siblings = nodesByParent[n.parentId] || [];
-                        const siblingIndex = siblings.findIndex(s => s.id === n.id);
-                        n.jitterY = config.levelOffsets[siblingIndex % config.levelOffsets.length];
-                    }
-                    if (n.branchColor === undefined && n.depth > 0) {
-                        let ancestor = n;
-                        while(ancestor.depth > 1) ancestor = ancestor.parent;
-                        const mainBranchSiblings = nodesByParent[0] || [];
-                        const mainBranchIndex = mainBranchSiblings.findIndex(s => s.id === ancestor.id);
-                        n.branchColor = config.branchColors[mainBranchIndex % config.branchColors.length];
-                    }
-                });
-                
-                updateAndRender();
-                recenterView();
-            };
-            reader.readAsText(file);
-            e.target.value = '';
-        });
-
-
+        // The button event listeners are removed, but the functions are kept for future use.
+        // document.getElementById('recenter-btn').addEventListener('click', recenterView);
+        // document.getElementById('new-btn').addEventListener('click', init);
+        // document.getElementById('save-btn').addEventListener('click', ...);
+        // document.getElementById('load-btn').addEventListener('click', ...);
+        
         // --- 10. INITIALIZATION ---
         function init() {
             state.nodes = [];
@@ -675,7 +582,6 @@
             addChildNode(coreNode.id);
             
             updateAndRender();
-            // Use a timeout to ensure the browser has calculated the layout before scrolling
             setTimeout(recenterView, 100);
         }
 
