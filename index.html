@@ -333,7 +333,10 @@
                 const nodeEl = document.createElement('div');
                 nodeEl.className = `node depth-${node.depth}`;
                 nodeEl.dataset.id = node.id;
-                nodeEl.style.transform = `translate(${node.x - config.nodeWidth / 2}px, ${node.y - config.nodeHeight / 2}px)`;
+                // **FIX**: Use CSS transform for robust centering of dynamic-width elements
+                nodeEl.style.left = `${node.x}px`;
+                nodeEl.style.top = `${node.y}px`;
+                nodeEl.style.transform = `translate(-50%, -50%)`;
                 
                 const textEl = document.createElement('div');
                 textEl.className = 'node-text';
@@ -352,7 +355,8 @@
                 if (node.depth === 0) {
                     if (node.text === node.placeholder) {
                         nodeEl.style.backgroundColor = 'white';
-                        nodeEl.style.border = `3px solid ${config.branchColors[2]}`;
+                        // **FIX**: Set border width to match level 1 line thickness
+                        nodeEl.style.border = `${config.lineThickness[0]}px solid ${config.branchColors[2]}`;
                         textEl.style.color = config.branchColors[2];
                     }
                 } else if (node.depth > 0 && node.branchColor) {
@@ -439,7 +443,8 @@
                 lineEl.style.backgroundColor = targetNode.branchColor;
             }
             
-            // Adjust Y-position to center the line vertically
+            // **FIX**: The line's own thickness was throwing off the vertical alignment.
+            // This adjusts the starting Y position to account for it.
             const adjustedY = sourceNode.y - (thickness / 2);
             lineEl.style.transform = `translate(${sourceNode.x}px, ${adjustedY}px) rotate(${angle}deg)`;
             lineEl.style.width = `${distance}px`;
