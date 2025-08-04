@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mobile Mindmap</title>
     <style>
         /* --- Basic Setup & Typography --- */
@@ -26,8 +26,7 @@
             height: 100%;
             font-family: 'Roboto', sans-serif;
             background-color: var(--background-color);
-            overflow: hidden; /* Critical for controlling pan/zoom */
-            position: fixed; /* Prevents pull-to-refresh issues */
+            overflow: hidden; 
         }
 
         /* --- Main App Containers --- */
@@ -37,17 +36,15 @@
             left: 0;
             width: 100%;
             height: 100%;
-            overflow: hidden;
+            overflow: scroll; /* ALLOWS NATIVE SCROLLING AND PINCH-ZOOM */
+            -webkit-overflow-scrolling: touch; /* Enables momentum scrolling on iOS */
         }
 
         #mindmap-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
+            position: relative; /* Changed from absolute */
             width: 5000px; /* Large canvas for panning */
             height: 8000px;
             transform-origin: 0 0;
-            transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
         }
 
         /* --- Node Styling --- */
@@ -61,7 +58,6 @@
             box-shadow: 0 2px 8px var(--shadow-light);
             padding: 8px 12px;
             transition: transform 0.4s ease-out, opacity 0.4s ease-out, background-color 0.4s, border-color 0.4s;
-            touch-action: none; /* Prevent default touch actions */
             border-style: solid;
             min-width: 100px;
             box-sizing: border-box;
@@ -284,7 +280,6 @@
         let state = {
             nodes: [],
             nextId: 0,
-            pan: { x: 0, y: 0, startX: 0, startY: 0, isPanning: false },
             editingNodeId: null,
         };
         
@@ -364,7 +359,6 @@
                 nodeEl.dataset.id = node.id;
                 nodeEl.style.transform = `translate(${node.x - config.nodeWidth / 2}px, ${node.y - config.nodeHeight / 2}px)`;
                 
-                // Apply branch colors and border thickness
                 if (node.depth > 0 && node.branchColor) {
                     const borderThickness = config.lineThickness[node.depth - 1] || 1;
                     nodeEl.style.borderWidth = `${borderThickness}px`;
@@ -383,7 +377,6 @@
 
                 const children = state.nodes.filter(n => n.parentId === node.id);
                 
-                // Show '+' button if depth is less than 3 AND children are less than 5
                 if (node.depth < 3 && children.length < 5) {
                     let addBtnColor;
                     if (node.depth === 0) {
@@ -396,7 +389,6 @@
                     actionsEl.appendChild(addBtn);
                 }
                 
-                // Always show Note button
                 const noteBtnColor = node.branchColor || 'var(--core-node-color)';
                 const noteBtn = createActionButton('N', 'note-btn', () => openNoteEditor(node.id), noteBtnColor);
                 if (node.note) {
@@ -405,7 +397,6 @@
                 }
                 actionsEl.appendChild(noteBtn);
 
-                // Show 'x' button for all nodes except the core one
                 if (node.depth > 0) {
                     const delBtn = createActionButton('&times;', 'del-btn', () => deleteNode(node.id), node.branchColor);
                     actionsEl.appendChild(delBtn);
@@ -414,7 +405,6 @@
                 if (actionsEl.children.length > 0) {
                     nodeEl.appendChild(actionsEl);
                 }
-
 
                 canvas.appendChild(nodeEl);
 
@@ -433,7 +423,7 @@
                 e.stopPropagation();
                 onClick();
             });
-            btn.style.backgroundColor = color || '#6c757d'; // Use provided color or fallback to grey
+            btn.style.backgroundColor = color || '#6c757d';
             return btn;
         }
 
@@ -520,46 +510,19 @@
             render();
         }
 
-        // --- 7. TOUCH & PAN/ZOOM HANDLING ---
-        function handleTouchStart(e) {
-            if (e.touches.length > 1 || e.target.closest('.action-btn') || e.target.classList.contains('node-text')) {
-                state.pan.isPanning = false;
-                return;
-            }
-            e.preventDefault();
-            
-            state.pan.startX = e.touches[0].clientX - state.pan.x;
-            state.pan.startY = e.touches[0].clientY - state.pan.y;
-            state.pan.isPanning = true;
-            canvas.style.transition = 'none';
-        }
-
-        function handleTouchMove(e) {
-            if (!state.pan.isPanning || e.touches.length > 1) return;
-            e.preventDefault();
-
-            state.pan.x = e.touches[0].clientX - state.pan.startX;
-            state.pan.y = e.touches[0].clientY - state.pan.y;
-            canvas.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px)`;
-        }
-
-        function handleTouchEnd(e) {
-            state.pan.isPanning = false;
-            canvas.style.transition = `transform ${config.animationDuration} ease`;
-        }
-        
+        // --- 7. VIEWPORT CONTROL ---
         function recenterView() {
             const coreNode = state.nodes[0];
             if (!coreNode) return;
 
-            const targetX = (window.innerWidth / 2) - coreNode.x;
-            const targetY = (window.innerHeight / 4) - coreNode.y;
+            const targetX = coreNode.x - (viewport.clientWidth / 2);
+            const targetY = coreNode.y - (viewport.clientHeight / 4);
 
-            state.pan.x = targetX;
-            state.pan.y = targetY;
-            
-            canvas.style.transition = `transform ${config.animationDuration} cubic-bezier(0.25, 1, 0.5, 1)`;
-            canvas.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px)`;
+            viewport.scrollTo({
+                top: targetY,
+                left: targetX,
+                behavior: 'smooth'
+            });
         }
 
         // --- 8. NODE EDITING & NOTES ---
@@ -612,12 +575,13 @@
         }
 
         // --- 9. EVENT LISTENERS ---
-        viewport.addEventListener('touchstart', handleTouchStart, { passive: false });
-        viewport.addEventListener('touchmove', handleTouchMove, { passive: false });
-        viewport.addEventListener('touchend', handleTouchEnd);
-
         let lastTap = 0;
         canvas.addEventListener('touchend', (e) => {
+            // Prevent interference with button clicks
+            if (e.target.closest('.action-btn')) {
+                return;
+            }
+
             const target = e.target;
             if (target.classList.contains('node-text')) {
                 const currentTime = new Date().getTime();
@@ -711,7 +675,8 @@
             addChildNode(coreNode.id);
             
             updateAndRender();
-            recenterView();
+            // Use a timeout to ensure the browser has calculated the layout before scrolling
+            setTimeout(recenterView, 100);
         }
 
         init();
