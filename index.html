@@ -343,10 +343,19 @@
                 const style = config.branchStyles[node.branchIndex || 0];
                 textEl.style.fontFamily = style.fontFamily;
                 textEl.style.fontSize = style.fontSizes[node.depth];
+                if (node.depth === 1) {
+                    textEl.style.fontWeight = '700';
+                }
 
                 nodeEl.appendChild(textEl);
-
-                if (node.depth > 0 && node.branchColor) {
+                
+                if (node.depth === 0) {
+                    if (node.text === node.placeholder) {
+                        nodeEl.style.backgroundColor = 'white';
+                        nodeEl.style.border = `3px solid ${config.branchColors[2]}`;
+                        textEl.style.color = config.branchColors[2];
+                    }
+                } else if (node.depth > 0 && node.branchColor) {
                     const borderThickness = config.lineThickness[node.depth - 1] || 1;
                     nodeEl.style.borderWidth = `${borderThickness}px`;
                     nodeEl.style.borderColor = node.branchColor;
@@ -429,9 +438,11 @@
             if (targetNode.branchColor) {
                 lineEl.style.backgroundColor = targetNode.branchColor;
             }
-
+            
+            // Adjust Y-position to center the line vertically
+            const adjustedY = sourceNode.y - (thickness / 2);
+            lineEl.style.transform = `translate(${sourceNode.x}px, ${adjustedY}px) rotate(${angle}deg)`;
             lineEl.style.width = `${distance}px`;
-            lineEl.style.transform = `translate(${sourceNode.x}px, ${sourceNode.y}px) rotate(${angle}deg)`;
             
             return lineEl;
         }
@@ -615,7 +626,7 @@
             state.nextId = 0;
             state.placeholderIndex = 0;
             
-            const coreNode = createNode('My Big Idea', null, 0, 0);
+            const coreNode = createNode('Your Big Idea', null, 0, 0);
             state.nodes.push(coreNode);
             
             addChildNode(coreNode.id);
