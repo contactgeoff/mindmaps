@@ -29,7 +29,7 @@
             height: 100%;
             font-family: 'Roboto', sans-serif;
             background-color: var(--background-color);
-            overflow: hidden; 
+            /* overflow: hidden; <-- REMOVED to allow native browser zoom */
         }
 
         /* --- Main App Containers --- */
@@ -828,27 +828,30 @@
         }
 
         // --- 8. NODE EDITING & NOTES ---
-        const viewportMeta = document.querySelector('meta[name="viewport"]');
-        const originalViewportContent = viewportMeta.getAttribute('content');
-
         function enableEditing(nodeEl, textEl) {
             const nodeId = parseInt(nodeEl.dataset.id, 10);
             const node = findNodeById(nodeId);
             if (!node) return;
+           
             nodeEl.classList.add('is-editing');
+
             textEl.setAttribute('contenteditable', 'true');
             if (textEl.textContent === node.placeholder) {
                 textEl.textContent = '';
             }
             textEl.focus();
             document.execCommand('selectAll', false, null);
-            viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+
             requestAnimationFrame(() => {
-                nodeEl.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
+                nodeEl.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center',
+                    inline: 'center'
+                });
             });
+
             function onBlur() {
                 nodeEl.classList.remove('is-editing');
-                viewportMeta.setAttribute('content', originalViewportContent);
                 textEl.setAttribute('contenteditable', 'false');
                 if (node) {
                     node.text = textEl.textContent.trim() || node.placeholder;
@@ -858,12 +861,14 @@
                 state.editingNodeId = null;
                 updateAndRender();
             }
+
             function onKeydown(e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
                     textEl.blur();
                 }
             }
+
             textEl.addEventListener('blur', onBlur);
             textEl.addEventListener('keydown', onKeydown);
         }
