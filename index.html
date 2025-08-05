@@ -130,16 +130,16 @@
         }
         
         .note-btn {
-            width: 32px; /* Tap area */
-            height: 32px; /* Tap area */
-            top: -16px;
-            left: -16px;
+            width: 36px; /* Tap area increased */
+            height: 36px; /* Tap area increased */
+            top: -18px; /* Adjusted for new size */
+            left: -18px; /* Adjusted for new size */
         }
         
         .note-btn svg {
             transition: fill 0.4s, stroke 0.4s;
-            width: 24px;
-            height: 24px;
+            width: 30px; /* 25% larger */
+            height: 30px; /* 25% larger */
         }
 
         /* --- Line Styling --- */
@@ -561,7 +561,8 @@
                 
                 if (node.note) {
                     noteSvg.style.fill = noteBtnColor;
-                    noteSvg.style.stroke = noteBtnColor;
+                } else {
+                    noteSvg.style.fill = 'white';
                 }
                 nodeEl.appendChild(noteBtn);
 
