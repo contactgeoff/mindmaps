@@ -115,7 +115,7 @@
 
         .add-btn {
             border-radius: 50%;
-            bottom: -16px; /* Position half-way over the bottom edge */
+            bottom: -28px; /* Positioned with ~10% overlap */
             left: 50%;
             transform: translateX(-50%);
         }
@@ -123,22 +123,32 @@
         .del-btn {
             border-radius: 50%;
             top: 50%;
-            right: -22px; /* Moved further out */
+            right: -28px; /* Positioned with ~10% overlap */
             transform: translateY(-50%);
         }
         
         .note-btn {
             border-radius: 4px;
             top: 50%;
-            left: -22px; /* Moved further out */
+            left: -25px; /* Positioned with ~10% overlap */
             transform: translateY(-50%);
             width: 28px; /* Made smaller */
             height: 28px; /* Made smaller */
         }
+        
+        .note-btn svg {
+            transition: fill 0.4s, stroke 0.4s;
+        }
 
         .note-btn.has-note {
-            border: 2px solid white;
-            box-shadow: 0 0 0 2px var(--core-node-color); /* Fallback color */
+            background-color: white !important;
+            border-style: solid;
+            border-width: 2px;
+            box-shadow: none;
+        }
+        
+        .note-btn.has-note svg {
+            stroke: white !important; /* Stroke of icon becomes white */
         }
 
 
@@ -556,9 +566,14 @@
                 const noteIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>`;
                 const noteBtnColor = node.branchColor || 'var(--core-node-color)';
                 const noteBtn = createActionButton(noteIconSVG, 'note-btn', () => openNoteEditor(node.id), noteBtnColor);
+                
                 if (node.note) {
                     noteBtn.classList.add('has-note');
-                    noteBtn.style.boxShadow = `0 0 0 2px ${noteBtnColor}`;
+                    noteBtn.style.borderColor = noteBtnColor;
+                    const svg = noteBtn.querySelector('svg');
+                    if(svg) {
+                        svg.style.fill = noteBtnColor;
+                    }
                 }
                 nodeEl.appendChild(noteBtn);
 
