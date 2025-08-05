@@ -622,14 +622,16 @@
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = htmlContent;
 
-            const urlRegex = /((?:https?:\/\/|www\.)[^\s<>"'()]+)/g;
+            // Case-insensitive regex for URLs
+            const urlRegex = /((?:https?:\/\/|www\.)[^\s<>"'()]+)/gi;
 
             function findAndReplace(node) {
                 if (node.nodeType === 3 && node.parentNode.nodeName !== 'A') {
                     const text = node.nodeValue;
                     const newHtml = text.replace(urlRegex, (url) => {
                         let href = url;
-                        if (href.startsWith('www.')) {
+                        // Handle 'Www.' by checking case-insensitively
+                        if (href.toLowerCase().startsWith('www.')) {
                             href = 'http://' + href;
                         }
                         return `<a href="${href}" target="_blank" rel="noopener noreferrer">${url}</a>`;
@@ -1397,4 +1399,4 @@
     });
     </script>
 </body>
-</ht
+</html>
