@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.1, maximum-scale=5">
     <title>Mobile Mindmap</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         /* --- Basic Setup & Typography --- */
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Lacquer&family=Roboto+Serif:opsz,wght@8..144,400;8..144,700&family=Roboto+Condensed:wght@400;700&family=Silkscreen&display=swap');
@@ -382,6 +384,9 @@
             <button class="fab-button" id="import-btn" title="Import from File">
                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
             </button>
+            <button class="fab-button" id="print-btn" title="Print Mindmap">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+            </button>
             <button class="fab-button" id="recenter-btn" title="Recenter View">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 21v-2m0-14V3m9 9h-2M5 12H3m15.36-6.36l-1.42-1.42M6.36 17.64l-1.42-1.42m12.72 0l-1.42 1.42M6.36 6.36l-1.42 1.42"></path></svg>
             </button>
@@ -448,6 +453,7 @@
         const fabMainBtn = document.getElementById('fab-main-btn');
         const exportBtn = document.getElementById('export-btn');
         const importBtn = document.getElementById('import-btn');
+        const printBtn = document.getElementById('print-btn');
         const recenterBtn = document.getElementById('recenter-btn');
         const alertOverlay = document.getElementById('alert-overlay');
         const alertMessage = document.getElementById('alert-message');
@@ -881,7 +887,153 @@
             updateAndRender();
         }
 
-        // --- 9. EVENT LISTENERS ---
+        // --- 9. PRINT FUNCTION ---
+        async function printMindmap() {
+            fabContainer.classList.remove('open');
+            const originalBtnContent = printBtn.innerHTML;
+            const originalBtnTitle = printBtn.title;
+            printBtn.innerHTML = '...';
+            printBtn.title = 'Generating PDF...';
+            printBtn.disabled = true;
+
+            const { jsPDF } = window.jspdf;
+            const padding = 100;
+
+            // Calculate bounding box of all nodes
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            state.nodes.forEach(node => {
+                const nodeWidth = node.width || config.nodeWidth;
+                const nodeHeight = config.nodeHeight;
+                minX = Math.min(minX, node.x - nodeWidth / 2);
+                maxX = Math.max(maxX, node.x + nodeWidth / 2);
+                minY = Math.min(minY, node.y - nodeHeight / 2);
+                maxY = Math.max(maxY, node.y + nodeHeight / 2);
+            });
+
+            const captureWidth = maxX - minX + padding * 2;
+            const captureHeight = maxY - minY + padding * 2;
+
+            const mainCanvas = await html2canvas(document.querySelector("#mindmap-canvas"), {
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#ffffff',
+                scale: 2,
+                x: minX - padding,
+                y: minY - padding,
+                width: captureWidth,
+                height: captureHeight
+            });
+            
+            const imgData = mainCanvas.toDataURL('image/jpeg', 0.8);
+            const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+            const a4_width = doc.internal.pageSize.getWidth();
+            const a4_height = doc.internal.pageSize.getHeight();
+            const img_ratio = mainCanvas.width / mainCanvas.height;
+            let img_w, img_h;
+
+            if (img_ratio > a4_width / a4_height) {
+                img_w = a4_width - 20;
+                img_h = img_w / img_ratio;
+            } else {
+                img_h = a4_height - 20;
+                img_w = img_h * img_ratio;
+            }
+            
+            const x_pos = (a4_width - img_w) / 2;
+            const y_pos = (a4_height - img_h) / 2;
+
+            const coreNode = state.nodes.find(n => n.depth === 0);
+            const pageHeader = coreNode ? coreNode.text : 'My Mindmap';
+
+            function addHeader(docInstance) {
+                docInstance.setFontSize(14);
+                docInstance.setTextColor('#1d3557');
+                docInstance.text(pageHeader, 10, 10);
+            }
+
+            addHeader(doc);
+            doc.addImage(imgData, 'JPEG', x_pos, y_pos, img_w, img_h);
+
+            const notesWithContent = state.nodes.filter(n => n.note && n.note.trim() !== '' && n.note.trim() !== '<br>');
+
+            if (notesWithContent.length > 0) {
+                doc.addPage('a4', 'portrait');
+                addHeader(doc);
+
+                const pageW = doc.internal.pageSize.getWidth();
+                const pageH = doc.internal.pageSize.getHeight();
+                const margin = 10;
+                const contentWidth = pageW - (margin * 2);
+                let currentY = 20;
+
+                const tempNoteContainer = document.createElement('div');
+                tempNoteContainer.style.position = 'absolute';
+                tempNoteContainer.style.left = '-9999px';
+                tempNoteContainer.style.top = '0';
+                tempNoteContainer.style.width = contentWidth * 3.78 + 'px'; // mm to px
+                document.body.appendChild(tempNoteContainer);
+
+                for (const noteNode of notesWithContent) {
+                    let path = [];
+                    let current = noteNode;
+                    while(current) {
+                        path.unshift(current.text || '');
+                        current = current.parent;
+                    }
+                    const title = path.join(' > ');
+                    
+                    doc.setFontSize(10);
+                    doc.setFont('helvetica', 'bold');
+                    const titleLines = doc.splitTextToSize(title, contentWidth - 5);
+                    const titleHeight = (titleLines.length * 4) + 5;
+
+                    const noteRenderDiv = document.createElement('div');
+                    noteRenderDiv.style.padding = '5px';
+                    noteRenderDiv.style.background = 'white';
+                    noteRenderDiv.style.fontFamily = 'sans-serif';
+                    noteRenderDiv.style.fontSize = '16px';
+                    noteRenderDiv.style.lineHeight = '1.5';
+                    noteRenderDiv.innerHTML = noteNode.note;
+                    tempNoteContainer.appendChild(noteRenderDiv);
+
+                    const noteCanvas = await html2canvas(noteRenderDiv, { scale: 2, backgroundColor: null, width: noteRenderDiv.scrollWidth });
+                    const noteImgData = noteCanvas.toDataURL('image/png');
+                    const noteImgHeightMM = (noteCanvas.height / noteCanvas.width) * (contentWidth - 5);
+                    
+                    tempNoteContainer.innerHTML = '';
+
+                    const totalNoteHeight = titleHeight + noteImgHeightMM + 10;
+                    if (currentY + totalNoteHeight > pageH - margin) {
+                        doc.addPage('a4', 'portrait');
+                        addHeader(doc);
+                        currentY = 20;
+                    }
+
+                    const borderColor = noteNode.branchColor || '#000000';
+                    doc.setDrawColor(borderColor);
+                    doc.setLineWidth(0.5);
+                    doc.rect(margin, currentY, contentWidth, totalNoteHeight - 5); 
+
+                    doc.setTextColor('#000000');
+                    doc.text(titleLines, margin + 2.5, currentY + 5);
+                    doc.addImage(noteImgData, 'PNG', margin + 2.5, currentY + titleHeight, contentWidth - 5, noteImgHeightMM);
+                    currentY += totalNoteHeight;
+                }
+                
+                document.body.removeChild(tempNoteContainer);
+            }
+
+            const sanitizedFilename = pageHeader.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            doc.save(`${sanitizedFilename}_mindmap.pdf`);
+            
+            printBtn.innerHTML = originalBtnContent;
+            printBtn.title = originalBtnTitle;
+            printBtn.disabled = false;
+        }
+
+
+        // --- 10. EVENT LISTENERS ---
         let lastTap = 0;
         canvas.addEventListener('touchend', (e) => {
             if (e.target.closest('.action-btn')) return;
@@ -909,13 +1061,14 @@
         fabMainBtn.addEventListener('click', () => fabContainer.classList.toggle('open'));
         exportBtn.addEventListener('click', exportMindmapToFile);
         importBtn.addEventListener('click', () => fileInput.click());
+        printBtn.addEventListener('click', printMindmap);
         recenterBtn.addEventListener('click', () => {
             recenterView();
             fabContainer.classList.remove('open');
         });
         fileInput.addEventListener('change', importMindmapFromFile);
        
-        // --- 10. INITIALIZATION ---
+        // --- 11. INITIALIZATION ---
         function startNewMap() {
             state.nodes = [];
             state.nextId = 0;
