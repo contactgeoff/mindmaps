@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Mobile Mindmap</title>
     <style>
         /* --- Basic Setup & Typography --- */
@@ -17,6 +17,7 @@
             --line-color: #aeb4be;
             --shadow-light: rgba(0, 0, 0, 0.1);
             --shadow-medium: rgba(0, 0, 0, 0.2);
+            --fab-color: #5865f2; /* A nice, modern blue */
         }
 
         body, html {
@@ -41,7 +42,7 @@
         }
 
         #mindmap-canvas {
-            position: relative; /* Changed from absolute */
+            position: relative;
             width: 5000px; /* Large canvas for panning */
             height: 8000px;
             transform-origin: 0 0;
@@ -192,6 +193,63 @@
             outline: none;
         }
 
+        /* --- Floating Action Button (FAB) Menu --- */
+        #fab-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column-reverse;
+            align-items: center;
+        }
+
+        .fab-menu {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 15px;
+            transform-origin: bottom center;
+            transform: scaleY(0);
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        #fab-container.open .fab-menu {
+            transform: scaleY(1);
+        }
+
+        .fab-button, #fab-main-btn {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background-color: var(--fab-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            border: none;
+            box-shadow: 0 4px 12px var(--shadow-medium);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .fab-button {
+            width: 48px;
+            height: 48px;
+            font-size: 22px;
+            margin-top: 10px;
+            background-color: #7884f5;
+        }
+
+        #fab-main-btn {
+            transition: transform 0.2s ease;
+        }
+
+        #fab-container.open #fab-main-btn {
+            transform: rotate(45deg);
+        }
+
     </style>
 </head>
 <body>
@@ -202,7 +260,24 @@
         </div>
     </div>
 
-    <!-- The bottom toolbar has been removed to allow for full-page zooming -->
+    <!-- Floating Action Button Menu for main controls -->
+    <div id="fab-container">
+        <div class="fab-menu">
+            <!-- Save Button -->
+            <button class="fab-button" id="save-btn" title="Save Mindmap">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+            </button>
+            <!-- Load Button -->
+            <button class="fab-button" id="load-btn" title="Load Mindmap">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            </button>
+            <!-- Recenter Button -->
+            <button class="fab-button" id="recenter-btn" title="Recenter View">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 21v-2m0-14V3m9 9h-2M5 12H3m15.36-6.36l-1.42-1.42M6.36 17.64l-1.42-1.42m12.72 0l-1.42 1.42M6.36 6.36l-1.42 1.42"></path></svg>
+            </button>
+        </div>
+        <button id="fab-main-btn">+</button>
+    </div>
 
     <div id="note-editor-overlay">
         <div id="note-editor">
@@ -215,7 +290,7 @@
     </div>
 
     <!-- Hidden file input for loading -->
-    <input type="file" id="file-input" style="display: none;" accept=".json">
+    <input type="file" id="file-input" style="display: none;" accept=".json,application/json">
 
     <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -224,6 +299,12 @@
         const viewport = document.getElementById('viewport');
         const canvas = document.getElementById('mindmap-canvas');
         const noteEditorOverlay = document.getElementById('note-editor-overlay');
+        const fileInput = document.getElementById('file-input');
+        const fabContainer = document.getElementById('fab-container');
+        const fabMainBtn = document.getElementById('fab-main-btn');
+        const saveBtn = document.getElementById('save-btn');
+        const loadBtn = document.getElementById('load-btn');
+        const recenterBtn = document.getElementById('recenter-btn');
 
         // --- 2. CONFIGURATION & STATE ---
         const config = {
@@ -290,7 +371,18 @@
 
             const children = state.nodes.filter(n => n.parentId === nodeId);
             if (children.length === 0) {
-                return config.nodeWidth;
+                // Re-calculate node width based on text content for better layout
+                const tempEl = document.createElement('span');
+                tempEl.style.fontSize = config.branchStyles[node.branchIndex || 0].fontSizes[node.depth];
+                tempEl.style.fontFamily = config.branchStyles[node.branchIndex || 0].fontFamily;
+                tempEl.style.visibility = 'hidden';
+                tempEl.style.position = 'absolute';
+                tempEl.innerText = node.text;
+                document.body.appendChild(tempEl);
+                const textWidth = tempEl.offsetWidth + 24; // 24 for padding
+                document.body.removeChild(tempEl);
+                node.width = Math.max(config.nodeWidth, textWidth);
+                return node.width;
             }
 
             let totalChildWidth = 0;
@@ -313,9 +405,10 @@
         }
 
         function getSubtreeWidth(nodeId) {
+            const node = findNodeById(nodeId);
             const children = state.nodes.filter(n => n.parentId === nodeId);
             if (children.length === 0) {
-                return config.nodeWidth;
+                return node.width || config.nodeWidth;
             }
             let totalWidth = 0;
             children.forEach(child => {
@@ -327,7 +420,18 @@
 
         // --- 5. RENDERING ENGINE ---
         function render() {
-            canvas.innerHTML = '';
+            canvas.innerHTML = ''; // Clear previous render
+
+            if (state.nodes.length === 0) return;
+
+            // Re-map parents after loading from file
+            state.nodes.forEach(node => {
+                if (node.parentId !== null) {
+                    node.parent = findNodeById(node.parentId);
+                } else {
+                    node.parent = null;
+                }
+            });
 
             state.nodes.forEach(node => {
                 const nodeEl = document.createElement('div');
@@ -336,6 +440,9 @@
                 nodeEl.style.left = `${node.x}px`;
                 nodeEl.style.top = `${node.y}px`;
                 nodeEl.style.transform = `translate(-50%, -50%)`;
+                if(node.width) {
+                    nodeEl.style.width = `${node.width}px`;
+                }
                 
                 const textEl = document.createElement('div');
                 textEl.className = 'node-text';
@@ -496,7 +603,11 @@
         }
 
         function deleteNode(nodeId) {
-            if (nodeId === 0) return;
+            if (nodeId === 0 && state.nodes.length > 1) {
+                // Prevent deleting the root node if it has children
+                alert("Cannot delete the main idea if it has branches. Delete the branches first.");
+                return;
+            }
 
             let nodesToDelete = new Set([nodeId]);
             let queue = [nodeId];
@@ -511,7 +622,12 @@
             }
 
             state.nodes = state.nodes.filter(n => !nodesToDelete.has(n.id));
-            updateAndRender();
+            if (state.nodes.length === 0) {
+                // If all nodes are deleted, re-initialize
+                init();
+            } else {
+                updateAndRender();
+            }
         }
 
         function findNodeById(id) {
@@ -523,8 +639,9 @@
             render();
         }
 
-        // --- 7. VIEWPORT CONTROL ---
+        // --- 7. VIEWPORT & FILE I/O ---
         function recenterView() {
+            if (state.nodes.length === 0) return;
             const coreNode = state.nodes[0];
             if (!coreNode) return;
 
@@ -538,14 +655,57 @@
             });
         }
 
+        function saveMindmap() {
+            // Create a serializable version of the state, removing circular 'parent' references
+            const stateToSave = {
+                ...state,
+                nodes: state.nodes.map(({ parent, ...rest }) => rest) // Exclude parent property
+            };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(stateToSave, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "mindmap.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+            fabContainer.classList.remove('open');
+        }
+
+        function loadMindmap(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const loadedState = JSON.parse(e.target.result);
+                    // Basic validation
+                    if (loadedState && loadedState.nodes && typeof loadedState.nextId === 'number') {
+                        state = loadedState;
+                        updateAndRender();
+                        setTimeout(recenterView, 100);
+                    } else {
+                        throw new Error("Invalid mindmap file format.");
+                    }
+                } catch (error) {
+                    console.error("Failed to load or parse mindmap file:", error);
+                    alert("Could not load file. It might be corrupted or in the wrong format.");
+                }
+            };
+            reader.readAsText(file);
+            fabContainer.classList.remove('open');
+            // Reset file input to allow loading the same file again
+            fileInput.value = '';
+        }
+
         // --- 8. NODE EDITING & NOTES ---
         function enableEditing(nodeEl, textEl) {
             const nodeId = parseInt(nodeEl.dataset.id, 10);
             const node = findNodeById(nodeId);
             if (!node) return;
 
-            // **FIX**: Use scrollIntoView for reliable positioning, especially when zoomed.
-            nodeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            nodeEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
 
             if (textEl.textContent === node.placeholder) {
                 textEl.textContent = '';
@@ -553,11 +713,10 @@
 
             textEl.setAttribute('contenteditable', 'true');
             
-            // **FIX**: Use a timeout to allow the smooth scroll to finish before focusing.
             setTimeout(() => {
                 textEl.focus();
                 document.execCommand('selectAll', false, null);
-            }, 400); // 400ms delay should be enough for the scroll animation
+            }, 400); 
             
             function onBlur() {
                 textEl.setAttribute('contenteditable', 'false');
@@ -612,7 +771,7 @@
             if (target.classList.contains('node-text')) {
                 const currentTime = new Date().getTime();
                 const tapLength = currentTime - lastTap;
-                if (tapLength < 300 && tapLength > 0) {
+                if (tapLength < 300 && tapLength > 0) { // Double tap
                     const nodeEl = target.closest('.node');
                     enableEditing(nodeEl, target);
                     e.preventDefault();
@@ -627,6 +786,18 @@
                 closeNoteEditor();
             }
         });
+
+        // FAB Menu Listeners
+        fabMainBtn.addEventListener('click', () => {
+            fabContainer.classList.toggle('open');
+        });
+        saveBtn.addEventListener('click', saveMindmap);
+        loadBtn.addEventListener('click', () => fileInput.click());
+        recenterBtn.addEventListener('click', () => {
+            recenterView();
+            fabContainer.classList.remove('open');
+        });
+        fileInput.addEventListener('change', loadMindmap);
         
         // --- 10. INITIALIZATION ---
         function init() {
