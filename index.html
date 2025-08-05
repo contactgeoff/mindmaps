@@ -151,7 +151,7 @@
             z-index: -1;
         }
        
-        /* --- Note Editor & Alert Modal --- */
+        /* --- Modals: Note Editor, Alert, Startup --- */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -207,17 +207,16 @@
             outline: none;
         }
 
-        /* Custom Alert Box Styles */
-        #alert-box {
+        #alert-box, #startup-choice-modal {
             padding: 20px;
             text-align: center;
         }
-        #alert-message {
+        #alert-message, #startup-choice-modal p {
             margin: 0 0 20px 0;
             font-size: 16px;
             line-height: 1.5;
         }
-        #alert-close-btn {
+        .modal-button {
             background-color: var(--core-node-color);
             color: white;
             border: none;
@@ -225,6 +224,43 @@
             border-radius: 8px;
             font-size: 16px;
             cursor: pointer;
+        }
+        #startup-choice-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+        #startup-continue-btn {
+            background-color: #3cb44b;
+        }
+
+        /* Instruction Modal */
+        #instruction-modal {
+            padding: 20px;
+        }
+        #instruction-modal h3 {
+            margin-top: 0;
+            font-size: 22px;
+            font-weight: bold;
+            color: #1d3557;
+            text-align: center;
+        }
+        #instruction-modal ul {
+            list-style-type: none;
+            padding: 0;
+            margin-top: 20px;
+        }
+        #instruction-modal li {
+            font-size: 16px;
+            color: #333;
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+        #instruction-modal li strong {
+            color: #4B0082;
+        }
+        #instruction-close-btn {
+            margin-top: 15px;
         }
 
 
@@ -237,7 +273,6 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            /* This can help force the element onto its own layer, fixing zoom issues on some browsers */
             transform: translateZ(0);
         }
 
@@ -245,7 +280,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin-top: 8px; /* Reduced space */
+            margin-top: 8px;
             transform-origin: top center;
             transform: scaleY(0);
             transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -256,8 +291,8 @@
         }
 
         #fab-main-btn {
-            width: 48px; /* Matched size */
-            height: 48px; /* Matched size */
+            width: 48px;
+            height: 48px;
             border-radius: 50%;
             background-color: var(--fab-color);
             color: white;
@@ -275,7 +310,7 @@
             height: 48px;
             font-size: 22px;
             margin-top: 12px;
-            background-color: #5a2a82; /* Lighter Purple */
+            background-color: #5a2a82;
             border-radius: 50%;
             color: white;
             display: flex;
@@ -289,8 +324,8 @@
 
         /* Hamburger Icon Styling */
         .hamburger-icon {
-            width: 24px; /* Adjusted for smaller button */
-            height: 18px; /* Adjusted for smaller button */
+            width: 24px;
+            height: 18px;
             position: relative;
             transform: rotate(0deg);
             transition: .5s ease-in-out;
@@ -299,7 +334,7 @@
         .hamburger-icon span {
             display: block;
             position: absolute;
-            height: 3px; /* Adjusted for smaller icon */
+            height: 3px;
             width: 100%;
             background: #ffffff;
             border-radius: 2px;
@@ -310,20 +345,17 @@
         }
 
         .hamburger-icon span:nth-child(1) { top: 0px; }
-        .hamburger-icon span:nth-child(2) { top: 7px; } /* Adjusted spacing */
-        .hamburger-icon span:nth-child(3) { top: 14px; } /* Adjusted spacing */
+        .hamburger-icon span:nth-child(2) { top: 7px; }
+        .hamburger-icon span:nth-child(3) { top: 14px; }
 
-        /* Hamburger to 'X' animation */
         #fab-container.open .hamburger-icon span:nth-child(1) {
             top: 7px;
             transform: rotate(135deg);
         }
-
         #fab-container.open .hamburger-icon span:nth-child(2) {
             opacity: 0;
             left: -24px;
         }
-
         #fab-container.open .hamburger-icon span:nth-child(3) {
             top: 7px;
             transform: rotate(-135deg);
@@ -334,32 +366,21 @@
 <body>
 
     <div id="viewport">
-        <div id="mindmap-canvas">
-            <!-- Nodes and lines will be injected here by JavaScript -->
-        </div>
+        <div id="mindmap-canvas"></div>
     </div>
 
-    <!-- Floating Action Button Menu for main controls -->
+    <!-- FAB Menu -->
     <div id="fab-container">
-        <!-- Main button is now first -->
         <button id="fab-main-btn" title="Open Menu">
-            <div class="hamburger-icon">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
+            <div class="hamburger-icon"><span></span><span></span><span></span></div>
         </button>
-        <!-- Menu expands below -->
         <div class="fab-menu">
-            <!-- Export Button -->
             <button class="fab-button" id="export-btn" title="Export to File">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
             </button>
-            <!-- Import Button -->
             <button class="fab-button" id="import-btn" title="Import from File">
                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
             </button>
-            <!-- Recenter Button -->
             <button class="fab-button" id="recenter-btn" title="Recenter View">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 21v-2m0-14V3m9 9h-2M5 12H3m15.36-6.36l-1.42-1.42M6.36 17.64l-1.42-1.42m12.72 0l-1.42 1.42M6.36 6.36l-1.42 1.42"></path></svg>
             </button>
@@ -381,12 +402,37 @@
     <div id="alert-overlay" class="modal-overlay">
         <div id="alert-box" class="modal-box">
             <p id="alert-message"></p>
-            <button id="alert-close-btn">OK</button>
+            <button id="alert-close-btn" class="modal-button">OK</button>
+        </div>
+    </div>
+    
+    <!-- Startup Choice Modal -->
+    <div id="startup-choice-overlay" class="modal-overlay">
+        <div id="startup-choice-modal" class="modal-box">
+            <p>Continue where you left off, or start a new mindmap?</p>
+            <div id="startup-choice-buttons">
+                <button id="startup-new-btn" class="modal-button">Start New</button>
+                <button id="startup-continue-btn" class="modal-button">Continue</button>
+            </div>
         </div>
     </div>
 
+    <!-- Instruction Modal -->
+    <div id="instruction-overlay" class="modal-overlay">
+        <div id="instruction-modal" class="modal-box">
+            <h3>Welcome to Mobile Mindmap!</h3>
+            <ul>
+                <li><strong>Start with an idea:</strong> Double-tap the main box to type.</li>
+                <li><strong>Add or remove ideas:</strong> Tap the <strong>+</strong> button to add a new idea, or <strong>&times;</strong> to remove one.</li>
+                <li><strong>Add notes:</strong> Tap the <strong>Note icon</strong> on any box to open the editor.</li>
+                <li><strong>Pan & Zoom:</strong> Use one finger to scroll and two fingers to pinch-zoom.</li>
+                <li><strong>Save your work:</strong> Your work is saved automatically! Use the menu to <strong>Export</strong> your map to a file.</li>
+            </ul>
+            <button id="instruction-close-btn" class="modal-button">Let's Go!</button>
+        </div>
+    </div>
 
-    <!-- Hidden file input for loading -->
+    <!-- Hidden file input -->
     <input type="file" id="file-input" style="display: none;" accept=".json,application/json">
 
     <script>
@@ -405,15 +451,19 @@
         const alertOverlay = document.getElementById('alert-overlay');
         const alertMessage = document.getElementById('alert-message');
         const alertCloseBtn = document.getElementById('alert-close-btn');
+        // Startup Modals
+        const startupChoiceOverlay = document.getElementById('startup-choice-overlay');
+        const startupContinueBtn = document.getElementById('startup-continue-btn');
+        const startupNewBtn = document.getElementById('startup-new-btn');
+        const instructionOverlay = document.getElementById('instruction-overlay');
+        const instructionCloseBtn = document.getElementById('instruction-close-btn');
 
 
         // --- 2. CONFIGURATION & STATE ---
         const STORAGE_KEY = 'mobileMindmapState';
 
-        // Helper function to generate and shuffle the offset array
         function createRandomizedOffsets() {
             const baseOffsets = [20, 40, 60, 80, 100, -20, -40, -60, -80, -100];
-            // Fisher-Yates shuffle algorithm
             for (let i = baseOffsets.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [baseOffsets[i], baseOffsets[j]] = [baseOffsets[j], baseOffsets[i]];
@@ -437,12 +487,12 @@
                 "Links to…", "Dig deeper…", "What if...?", "Explain more…", "So what?"
             ],
             branchStyles: [
-                { fontFamily: 'Roboto', fontSizes: ['18px', '16px', '15px', '14px'] }, // Core & Fallback
-                { fontFamily: 'Roboto Serif', fontSizes: ['18px', '16px', '15px', '14px'] }, // Branch 1 (Red)
-                { fontFamily: 'Lacquer', fontSizes: ['20px', '18px', '16px', '14px'] }, // Branch 2 (Green)
-                { fontFamily: 'Roboto Condensed', fontSizes: ['18px', '17px', '16px', '15px'] }, // Branch 3 (Blue)
-                { fontFamily: 'Silkscreen', fontSizes: ['16px', '14px', '13px', '12px'] }, // Branch 4 (Orange)
-                { fontFamily: 'Roboto', fontSizes: ['18px', '16px', '15px', '14px'] }  // Branch 5 (Purple)
+                { fontFamily: 'Roboto', fontSizes: ['18px', '16px', '15px', '14px'] },
+                { fontFamily: 'Roboto Serif', fontSizes: ['18px', '16px', '15px', '14px'] },
+                { fontFamily: 'Lacquer', fontSizes: ['20px', '18px', '16px', '14px'] },
+                { fontFamily: 'Roboto Condensed', fontSizes: ['18px', '17px', '16px', '15px'] },
+                { fontFamily: 'Silkscreen', fontSizes: ['16px', '14px', '13px', '12px'] },
+                { fontFamily: 'Roboto', fontSizes: ['18px', '16px', '15px', '14px'] }
             ],
             animationDuration: '0.4s'
         };
@@ -460,11 +510,9 @@
             let r = parseInt(hex.substring(1, 3), 16);
             let g = parseInt(hex.substring(3, 5), 16);
             let b = parseInt(hex.substring(5, 7), 16);
-
             r = Math.round(r + (255 - r) * (percent / 100));
             g = Math.round(g + (255 - g) * (percent / 100));
             b = Math.round(b + (255 - b) * (percent / 100));
-
             return `rgb(${r}, ${g}, ${b})`;
         }
 
@@ -488,13 +536,10 @@
         function positionNodeAndChildren(nodeId, x, y) {
             const node = findNodeById(nodeId);
             if (!node) return 0;
-
             node.x = x;
             node.y = y + node.jitterY;
-
             const children = state.nodes.filter(n => n.parentId === nodeId);
             if (children.length === 0) {
-                // Re-calculate node width based on text content for better layout
                 const tempEl = document.createElement('span');
                 tempEl.style.fontSize = config.branchStyles[node.branchIndex || 0].fontSizes[node.depth];
                 tempEl.style.fontFamily = config.branchStyles[node.branchIndex || 0].fontFamily;
@@ -502,18 +547,16 @@
                 tempEl.style.position = 'absolute';
                 tempEl.innerText = node.text;
                 document.body.appendChild(tempEl);
-                const textWidth = tempEl.offsetWidth + 24; // 24 for padding
+                const textWidth = tempEl.offsetWidth + 24;
                 document.body.removeChild(tempEl);
                 node.width = Math.max(config.nodeWidth, textWidth);
                 return node.width;
             }
-
             let totalChildWidth = 0;
             children.forEach(child => {
                 totalChildWidth += positionNodeAndChildren(child.id, 0, 0);
             });
             totalChildWidth += (children.length - 1) * config.hSpacing;
-
             let currentX = x - totalChildWidth / 2;
             children.forEach(child => {
                 const childSubtreeWidth = getSubtreeWidth(child.id);
@@ -523,7 +566,6 @@
                 positionNodeAndChildren(child.id, childX, childY);
                 currentX += childSubtreeWidth + config.hSpacing;
             });
-
             return totalChildWidth;
         }
 
@@ -543,19 +585,11 @@
 
         // --- 5. RENDERING ENGINE ---
         function render() {
-            canvas.innerHTML = ''; // Clear previous render
-
+            canvas.innerHTML = '';
             if (state.nodes.length === 0) return;
-
-            // Re-map parents after loading from file
             state.nodes.forEach(node => {
-                if (node.parentId !== null) {
-                    node.parent = findNodeById(node.parentId);
-                } else {
-                    node.parent = null;
-                }
+                node.parent = node.parentId !== null ? findNodeById(node.parentId) : null;
             });
-
             state.nodes.forEach(node => {
                 const nodeEl = document.createElement('div');
                 nodeEl.className = `node depth-${node.depth}`;
@@ -563,24 +597,19 @@
                 nodeEl.style.left = `${node.x}px`;
                 nodeEl.style.top = `${node.y}px`;
                 nodeEl.style.transform = `translate(-50%, -50%)`;
-                if(node.width) {
-                    nodeEl.style.width = `${node.width}px`;
-                }
-               
+                if(node.width) nodeEl.style.width = `${node.width}px`;
+                
                 const textEl = document.createElement('div');
                 textEl.className = 'node-text';
                 textEl.textContent = node.text;
                 textEl.setAttribute('contenteditable', 'false');
-               
+                
                 const style = config.branchStyles[node.branchIndex || 0];
                 textEl.style.fontFamily = style.fontFamily;
                 textEl.style.fontSize = style.fontSizes[node.depth];
-                if (node.depth === 1) {
-                    textEl.style.fontWeight = '700';
-                }
-
+                if (node.depth === 1) textEl.style.fontWeight = '700';
                 nodeEl.appendChild(textEl);
-               
+                
                 if (node.depth === 0) {
                     if (node.text === node.placeholder) {
                         nodeEl.style.backgroundColor = 'white';
@@ -591,50 +620,38 @@
                     const borderThickness = config.lineThickness[node.depth - 1] || 1;
                     nodeEl.style.borderWidth = `${borderThickness}px`;
                     nodeEl.style.borderColor = node.branchColor;
-
                     if (node.text !== node.placeholder) {
                         const tint = config.backgroundTints[node.depth - 1] || 85;
                         nodeEl.style.backgroundColor = lightenColor(node.branchColor, tint);
                     } else {
                         nodeEl.style.backgroundColor = lightenColor(node.branchColor, 90);
-                        // Set the placeholder text color to match the branch color
                         textEl.style.color = node.branchColor;
                     }
                 }
-               
+                
                 const children = state.nodes.filter(n => n.parentId === node.id);
-               
-                // Create and append action buttons directly to the node element
                 if (node.depth < 3 && children.length < 5) {
-                    let addBtnColor;
+                    let addBtnColor = node.branchColor;
                     if (node.depth === 0) {
                         const usedColors = new Set(children.map(c => c.branchColor));
                         addBtnColor = config.branchColors.find(c => !usedColors.has(c));
-                    } else {
-                        addBtnColor = node.branchColor;
                     }
                     const addBtn = createActionButton('+', 'add-btn', () => addChildNode(node.id), addBtnColor);
                     nodeEl.appendChild(addBtn);
                 }
-               
+                
                 const noteIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>`;
                 const noteBtnColor = node.branchColor || 'var(--core-node-color)';
                 const noteBtn = createActionButton(noteIconSVG, 'note-btn', () => openNoteEditor(node.id));
                 const noteSvg = noteBtn.querySelector('svg');
                 noteSvg.style.stroke = noteBtnColor;
-               
-                if (node.note) {
-                    noteSvg.style.fill = noteBtnColor;
-                } else {
-                    noteSvg.style.fill = 'white';
-                }
+                noteSvg.style.fill = node.note ? noteBtnColor : 'white';
                 nodeEl.appendChild(noteBtn);
 
                 if (node.depth > 0) {
                     const delBtn = createActionButton('&times;', 'del-btn', () => deleteNode(node.id), node.branchColor);
                     nodeEl.appendChild(delBtn);
                 }
-
                 canvas.appendChild(nodeEl);
 
                 if (node.parent) {
@@ -652,7 +669,6 @@
                 e.stopPropagation();
                 onClick();
             });
-            // Only apply background color if it's not a note button
             if (!className.includes('note-btn')) {
                  btn.style.backgroundColor = color || '#6c757d';
             }
@@ -662,33 +678,26 @@
         function createLine(sourceNode, targetNode) {
             const lineEl = document.createElement('div');
             lineEl.className = 'line';
-
             const dx = targetNode.x - sourceNode.x;
             const dy = targetNode.y - sourceNode.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-
             const thickness = config.lineThickness[sourceNode.depth] || 1;
             lineEl.style.height = `${thickness}px`;
-
             if (targetNode.branchColor) {
                 lineEl.style.backgroundColor = targetNode.branchColor;
             }
-           
             const adjustedY = sourceNode.y - (thickness / 2);
             lineEl.style.transform = `translate(${sourceNode.x}px, ${adjustedY}px) rotate(${angle}deg)`;
             lineEl.style.width = `${distance}px`;
-           
             return lineEl;
         }
 
         // --- 6. CORE LOGIC & ACTIONS ---
-        function createNode(text, parentId, depth, siblingIndex) {
+        function createNode(text, parentId, depth) {
             const id = state.nextId++;
             const parent = findNodeById(parentId);
-            // Use the new randomized offset array, picking based on the unique nextId
             const jitterY = depth > 0 ? config.randomizedOffsets[id % config.randomizedOffsets.length] : 0;
-           
             let branchColor = null, branchIndex = 0;
             if (depth === 1) {
                 const usedColors = new Set(state.nodes.filter(n => n.parentId === parentId).map(c => c.branchColor));
@@ -699,7 +708,6 @@
                 branchColor = parent.branchColor;
                 branchIndex = parent.branchIndex;
             }
-
             let nodeText, placeholder;
             if (depth === 0) {
                 nodeText = text;
@@ -709,23 +717,18 @@
                 state.placeholderIndex++;
                 nodeText = placeholder;
             }
-
             return { id, text: nodeText, placeholder, parentId, parent, depth, x: 0, y: 0, note: '', jitterY, branchColor, branchIndex };
         }
 
         function addChildNode(parentId) {
             const parentNode = findNodeById(parentId);
             if (!parentNode || parentNode.depth >= 3) return;
-
             const children = state.nodes.filter(n => n.parentId === parentId);
             if (children.length >= 5) {
                 showMessage("A maximum of 5 branches per node is allowed.");
                 return;
             }
-           
-            const siblingIndex = children.length;
-            const newNode = createNode(null, parentId, parentNode.depth + 1, siblingIndex);
-           
+            const newNode = createNode(null, parentId, parentNode.depth + 1);
             state.nodes.push(newNode);
             updateAndRender();
         }
@@ -735,23 +738,18 @@
                 showMessage("Cannot delete the main idea if it has branches. Please delete the branches first.");
                 return;
             }
-
             let nodesToDelete = new Set([nodeId]);
             let queue = [nodeId];
-
             while(queue.length > 0) {
-                const currentId = queue.shift();
-                const children = state.nodes.filter(n => n.parentId === currentId);
+                const children = state.nodes.filter(n => n.parentId === queue.shift());
                 children.forEach(child => {
                     nodesToDelete.add(child.id);
                     queue.push(child.id);
                 });
             }
-
             state.nodes = state.nodes.filter(n => !nodesToDelete.has(n.id));
             if (state.nodes.length === 0) {
-                // If all nodes are deleted, re-initialize
-                init(true); // force creation of new map
+                startNewMap();
             } else {
                 updateAndRender();
             }
@@ -764,7 +762,7 @@
         function updateAndRender() {
             calculateLayout();
             render();
-            saveStateToLocalStorage(); // Auto-save on every meaningful change
+            saveStateToLocalStorage();
         }
 
         // --- 7. DATA PERSISTENCE & FILE I/O ---
@@ -772,23 +770,14 @@
             if (state.nodes.length === 0) return;
             const coreNode = state.nodes[0];
             if (!coreNode) return;
-
             const targetX = coreNode.x - (viewport.clientWidth / 2);
             const targetY = coreNode.y - (viewport.clientHeight / 4);
-
-            viewport.scrollTo({
-                top: targetY,
-                left: targetX,
-                behavior: 'smooth'
-            });
+            viewport.scrollTo({ top: targetY, left: targetX, behavior: 'smooth' });
         }
         
         function saveStateToLocalStorage() {
             try {
-                const stateToSave = {
-                    ...state,
-                    nodes: state.nodes.map(({ parent, ...rest }) => rest)
-                };
+                const stateToSave = { ...state, nodes: state.nodes.map(({ parent, ...rest }) => rest) };
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
             } catch (error) {
                 console.error("Could not save to local storage:", error);
@@ -796,10 +785,7 @@
         }
 
         function exportMindmapToFile() {
-            const stateToSave = {
-                ...state,
-                nodes: state.nodes.map(({ parent, ...rest }) => rest) // Exclude parent property
-            };
+            const stateToSave = { ...state, nodes: state.nodes.map(({ parent, ...rest }) => rest) };
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(stateToSave, null, 2));
             const downloadAnchorNode = document.createElement('a');
             downloadAnchorNode.setAttribute("href", dataStr);
@@ -813,12 +799,10 @@
         function importMindmapFromFile(event) {
             const file = event.target.files[0];
             if (!file) return;
-            
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
                     const loadedState = JSON.parse(e.target.result);
-                    // Basic validation
                     if (loadedState && loadedState.nodes && typeof loadedState.nextId === 'number') {
                         state = loadedState;
                         updateAndRender();
@@ -833,7 +817,7 @@
             };
             reader.readAsText(file);
             fabContainer.classList.remove('open');
-            fileInput.value = ''; // Reset file input
+            fileInput.value = '';
         }
 
         // --- 8. NODE EDITING & NOTES ---
@@ -844,34 +828,20 @@
             const nodeId = parseInt(nodeEl.dataset.id, 10);
             const node = findNodeById(nodeId);
             if (!node) return;
-           
             nodeEl.classList.add('is-editing');
-
-            // 1. Make editable and focus immediately.
             textEl.setAttribute('contenteditable', 'true');
             if (textEl.textContent === node.placeholder) {
                 textEl.textContent = '';
             }
             textEl.focus();
             document.execCommand('selectAll', false, null);
-
-            // 2. Force zoom reset by temporarily changing the viewport meta tag.
             viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
-
-            // 3. Scroll the element into view.
             requestAnimationFrame(() => {
-                nodeEl.scrollIntoView({
-                    behavior: 'auto',
-                    block: 'center',
-                    inline: 'center'
-                });
+                nodeEl.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
             });
-
             function onBlur() {
                 nodeEl.classList.remove('is-editing');
-                // 4. Restore original viewport settings.
                 viewportMeta.setAttribute('content', originalViewportContent);
-
                 textEl.setAttribute('contenteditable', 'false');
                 if (node) {
                     node.text = textEl.textContent.trim() || node.placeholder;
@@ -881,14 +851,12 @@
                 state.editingNodeId = null;
                 updateAndRender();
             }
-
             function onKeydown(e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
                     textEl.blur();
                 }
             }
-
             textEl.addEventListener('blur', onBlur);
             textEl.addEventListener('keydown', onKeydown);
         }
@@ -897,7 +865,6 @@
             state.editingNodeId = nodeId;
             const node = findNodeById(nodeId);
             if (!node) return;
-           
             document.getElementById('note-title').textContent = `Note for: ${node.text}`;
             document.getElementById('note-content').innerHTML = node.note;
             noteEditorOverlay.style.display = 'flex';
@@ -916,15 +883,12 @@
         // --- 9. EVENT LISTENERS ---
         let lastTap = 0;
         canvas.addEventListener('touchend', (e) => {
-            if (e.target.closest('.action-btn')) {
-                return;
-            }
-
+            if (e.target.closest('.action-btn')) return;
             const target = e.target;
             if (target.classList.contains('node-text')) {
                 const currentTime = new Date().getTime();
                 const tapLength = currentTime - lastTap;
-                if (tapLength < 300 && tapLength > 0) { // Double tap
+                if (tapLength < 300 && tapLength > 0) {
                     const nodeEl = target.closest('.node');
                     enableEditing(nodeEl, target);
                     e.preventDefault();
@@ -935,24 +899,13 @@
        
         noteEditorOverlay.querySelector('.note-header-close').addEventListener('click', closeNoteEditor);
         noteEditorOverlay.addEventListener('click', (e) => {
-            if (e.target === noteEditorOverlay) {
-                closeNoteEditor();
-            }
+            if (e.target === noteEditorOverlay) closeNoteEditor();
         });
-
-        // Alert Modal Listeners
         alertCloseBtn.addEventListener('click', hideMessage);
         alertOverlay.addEventListener('click', (e) => {
-            if (e.target === alertOverlay) {
-                hideMessage();
-            }
+            if (e.target === alertOverlay) hideMessage();
         });
-
-
-        // FAB Menu Listeners
-        fabMainBtn.addEventListener('click', () => {
-            fabContainer.classList.toggle('open');
-        });
+        fabMainBtn.addEventListener('click', () => fabContainer.classList.toggle('open'));
         exportBtn.addEventListener('click', exportMindmapToFile);
         importBtn.addEventListener('click', () => fileInput.click());
         recenterBtn.addEventListener('click', () => {
@@ -962,38 +915,62 @@
         fileInput.addEventListener('change', importMindmapFromFile);
        
         // --- 10. INITIALIZATION ---
-        function init(forceNew = false) {
-            let loadedState = null;
-            if (!forceNew) {
-                try {
-                    const savedData = localStorage.getItem(STORAGE_KEY);
-                    if (savedData) {
-                        loadedState = JSON.parse(savedData);
-                    }
-                } catch (error) {
-                    console.error("Failed to load state from local storage:", error);
-                    loadedState = null;
-                }
-            }
-
-            if (loadedState && loadedState.nodes && loadedState.nodes.length > 0) {
-                state = loadedState;
-            } else {
-                // Create a default map if nothing is loaded or if forced
-                state.nodes = [];
-                state.nextId = 0;
-                state.placeholderIndex = 0;
-               
-                const coreNode = createNode('Your Big Idea', null, 0, 0);
-                state.nodes.push(coreNode);
-               
-                addChildNode(coreNode.id);
-                addChildNode(coreNode.id);
-            }
-           
+        function startNewMap() {
+            state.nodes = [];
+            state.nextId = 0;
+            state.placeholderIndex = 0;
+            const coreNode = createNode('Your Big Idea', null, 0);
+            state.nodes.push(coreNode);
+            addChildNode(coreNode.id);
+            addChildNode(coreNode.id);
             updateAndRender();
             setTimeout(recenterView, 100);
         }
+
+        function loadFromStorage() {
+             try {
+                const savedData = localStorage.getItem(STORAGE_KEY);
+                if (savedData) {
+                    const loadedState = JSON.parse(savedData);
+                     if (loadedState && loadedState.nodes && loadedState.nodes.length > 0) {
+                        state = loadedState;
+                        updateAndRender();
+                        setTimeout(recenterView, 100);
+                        return true;
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to load state from local storage:", error);
+            }
+            return false;
+        }
+
+        function init() {
+            const hasSavedData = localStorage.getItem(STORAGE_KEY);
+
+            if (hasSavedData) {
+                startupChoiceOverlay.style.display = 'flex';
+            } else {
+                instructionOverlay.style.display = 'flex';
+            }
+        }
+
+        startupContinueBtn.addEventListener('click', () => {
+            startupChoiceOverlay.style.display = 'none';
+            if (!loadFromStorage()) {
+                startNewMap(); // Fallback if loading fails
+            }
+        });
+
+        startupNewBtn.addEventListener('click', () => {
+            startupChoiceOverlay.style.display = 'none';
+            startNewMap();
+        });
+
+        instructionCloseBtn.addEventListener('click', () => {
+            instructionOverlay.style.display = 'none';
+            startNewMap();
+        });
 
         init();
     });
