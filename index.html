@@ -6,6 +6,8 @@
     <title>Mobile Mindmap</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Added DOMPurify for sanitizing HTML content -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
     <style>
         /* --- Basic Setup & Typography --- */
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Lacquer&family=Roboto+Serif:opsz,wght@8..144,400;8..144,700&family=Roboto+Condensed:wght@400;700&family=Silkscreen&display=swap');
@@ -83,7 +85,7 @@
             font-size: 18px;
             font-weight: 700;
         }
-       
+        
         /* --- Node Action Buttons --- */
         .action-btn {
             position: absolute;
@@ -103,7 +105,7 @@
         .action-btn:active {
             transform: scale(0.9);
         }
-       
+        
         /* Hide buttons when the parent node is being edited */
         .node.is-editing .action-btn {
             opacity: 0;
@@ -123,19 +125,19 @@
             left: 50%;
             transform: translateX(-50%);
         }
-       
+        
         .del-btn {
             top: -16px;
             right: -16px;
         }
-       
+        
         .note-btn {
             width: 36px; /* Tap area increased */
             height: 36px; /* Tap area increased */
             top: -20px; /* Adjusted for new size */
             left: -20px; /* Adjusted for new size */
         }
-       
+        
         .note-btn svg {
             transition: fill 0.4s, stroke 0.4s;
             width: 30px; /* 25% larger */
@@ -150,7 +152,7 @@
             transition: transform 0.4s ease-out, width 0.4s ease-out, opacity 0.4s ease-out, background-color 0.4s;
             z-index: -1;
         }
-       
+        
         /* --- Modals: Note Editor, Alert, Startup --- */
         .modal-overlay {
             position: fixed;
@@ -191,7 +193,7 @@
             justify-content: space-between;
             align-items: center;
         }
-       
+        
         .note-header-close {
             font-size: 24px;
             cursor: pointer;
@@ -305,7 +307,7 @@
             cursor: pointer;
             transition: all 0.2s ease;
         }
-       
+        
         .fab-button {
             width: 48px;
             height: 48px;
@@ -508,7 +510,7 @@
             editingNodeId: null,
             placeholderIndex: 0,
         };
-       
+        
         // --- 3. UTILITY & UI FUNCTIONS ---
         function lightenColor(hex, percent) {
             if (!hex) return '#ffffff';
@@ -537,7 +539,7 @@
             const coreNode = state.nodes[0];
             positionNodeAndChildren(coreNode.id, config.canvasWidth / 2, 200);
         }
-       
+        
         function positionNodeAndChildren(nodeId, x, y) {
             const node = findNodeById(nodeId);
             if (!node) return 0;
@@ -830,7 +832,7 @@
             const nodeId = parseInt(nodeEl.dataset.id, 10);
             const node = findNodeById(nodeId);
             if (!node) return;
-           
+            
             nodeEl.classList.add('is-editing');
 
             textEl.setAttribute('contenteditable', 'true');
@@ -890,7 +892,7 @@
             updateAndRender();
         }
 
-        // --- 9. PRINT FUNCTION ---
+        // --- 9. PRINT FUNCTION (UPDATED & SECURE) ---
         async function printMindmap() {
             fabContainer.classList.remove('open');
             const originalBtnContent = printBtn.innerHTML;
@@ -997,7 +999,11 @@
                     noteRenderDiv.style.fontFamily = 'sans-serif';
                     noteRenderDiv.style.fontSize = '16px';
                     noteRenderDiv.style.lineHeight = '1.5';
-                    noteRenderDiv.innerHTML = noteNode.note;
+                    
+                    // --- THIS IS THE SECURE CHANGE ---
+                    // Sanitize the HTML content before injecting it into the DOM.
+                    noteRenderDiv.innerHTML = DOMPurify.sanitize(noteNode.note);
+
                     tempNoteContainer.appendChild(noteRenderDiv);
 
                     const noteCanvas = await html2canvas(noteRenderDiv, { scale: 2, backgroundColor: null, width: noteRenderDiv.scrollWidth });
@@ -1052,7 +1058,7 @@
                 lastTap = currentTime;
             }
         });
-       
+        
         noteEditorOverlay.querySelector('.note-header-close').addEventListener('click', closeNoteEditor);
         noteEditorOverlay.addEventListener('click', (e) => {
             if (e.target === noteEditorOverlay) closeNoteEditor();
@@ -1070,7 +1076,7 @@
             fabContainer.classList.remove('open');
         });
         fileInput.addEventListener('change', importMindmapFromFile);
-       
+        
         // --- 11. INITIALIZATION ---
         function startNewMap() {
             state.nodes = [];
@@ -1094,7 +1100,7 @@
                         updateAndRender();
                         setTimeout(recenterView, 100);
                         return true;
-                    }
+                     }
                 }
             } catch (error) {
                 console.error("Failed to load state from local storage:", error);
@@ -1134,4 +1140,3 @@
     </script>
 </body>
 </html>
-"
