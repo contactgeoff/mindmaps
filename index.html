@@ -17,7 +17,7 @@
             --line-color: #aeb4be;
             --shadow-light: rgba(0, 0, 0, 0.1);
             --shadow-medium: rgba(0, 0, 0, 0.2);
-            --fab-color: #5865f2; /* A nice, modern blue */
+            --fab-color: #30004d; /* Very Dark Purple */
         }
 
         body, html {
@@ -200,7 +200,7 @@
             right: 20px;
             z-index: 100;
             display: flex;
-            flex-direction: column; /* Changed from column-reverse */
+            flex-direction: column;
             align-items: center;
         }
 
@@ -208,8 +208,8 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin-top: 15px; /* Changed from margin-bottom */
-            transform-origin: top center; /* Changed from bottom center */
+            margin-top: 15px;
+            transform-origin: top center;
             transform: scaleY(0);
             transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -227,7 +227,6 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 28px;
             border: none;
             box-shadow: 0 4px 12px var(--shadow-medium);
             cursor: pointer;
@@ -239,15 +238,49 @@
             height: 48px;
             font-size: 22px;
             margin-top: 10px;
-            background-color: #7884f5;
+            background-color: #5a2a82; /* Lighter Purple */
         }
 
-        #fab-main-btn {
-            transition: transform 0.2s ease;
+        /* Hamburger Icon Styling */
+        .hamburger-icon {
+            width: 28px;
+            height: 22px;
+            position: relative;
+            transform: rotate(0deg);
+            transition: .5s ease-in-out;
         }
 
-        #fab-container.open #fab-main-btn {
-            transform: rotate(45deg);
+        .hamburger-icon span {
+            display: block;
+            position: absolute;
+            height: 4px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 2px;
+            opacity: 1;
+            left: 0;
+            transform: rotate(0deg);
+            transition: .25s ease-in-out;
+        }
+
+        .hamburger-icon span:nth-child(1) { top: 0px; }
+        .hamburger-icon span:nth-child(2) { top: 9px; }
+        .hamburger-icon span:nth-child(3) { top: 18px; }
+
+        /* Hamburger to 'X' animation */
+        #fab-container.open .hamburger-icon span:nth-child(1) {
+            top: 9px;
+            transform: rotate(135deg);
+        }
+
+        #fab-container.open .hamburger-icon span:nth-child(2) {
+            opacity: 0;
+            left: -28px;
+        }
+
+        #fab-container.open .hamburger-icon span:nth-child(3) {
+            top: 9px;
+            transform: rotate(-135deg);
         }
 
     </style>
@@ -262,6 +295,15 @@
 
     <!-- Floating Action Button Menu for main controls -->
     <div id="fab-container">
+        <!-- Main button is now first -->
+        <button id="fab-main-btn" title="Open Menu">
+            <div class="hamburger-icon">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </button>
+        <!-- Menu expands below -->
         <div class="fab-menu">
             <!-- Save Button -->
             <button class="fab-button" id="save-btn" title="Save Mindmap">
@@ -276,7 +318,6 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 21v-2m0-14V3m9 9h-2M5 12H3m15.36-6.36l-1.42-1.42M6.36 17.64l-1.42-1.42m12.72 0l-1.42 1.42M6.36 6.36l-1.42 1.42"></path></svg>
             </button>
         </div>
-        <button id="fab-main-btn">+</button>
     </div>
 
     <div id="note-editor-overlay">
