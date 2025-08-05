@@ -87,12 +87,8 @@
         /* --- Node Action Buttons --- */
         .action-btn {
             position: absolute;
-            width: 32px;
-            height: 32px;
             border: none;
-            box-shadow: 0 1px 4px var(--shadow-light);
             color: white;
-            font-size: 20px;
             font-weight: bold;
             display: flex;
             align-items: center;
@@ -101,6 +97,7 @@
             transition: transform 0.2s ease, background-color 0.4s, opacity 0.2s;
             line-height: 1;
             z-index: 5;
+            background-color: transparent; /* Default to no background */
         }
 
         .action-btn:active {
@@ -113,44 +110,37 @@
             pointer-events: none;
         }
 
+        .add-btn, .del-btn {
+             width: 28px; /* Smaller size */
+             height: 28px; /* Smaller size */
+             font-size: 18px;
+             box-shadow: 0 1px 4px var(--shadow-light);
+             border-radius: 50%;
+        }
+
         .add-btn {
-            border-radius: 50%;
-            bottom: -28px; /* Positioned with ~10% overlap */
+            bottom: -24px; 
             left: 50%;
             transform: translateX(-50%);
         }
         
         .del-btn {
-            border-radius: 50%;
-            top: 50%;
-            right: -28px; /* Positioned with ~10% overlap */
-            transform: translateY(-50%);
+            top: -14px;
+            right: -14px;
         }
         
         .note-btn {
-            border-radius: 4px;
-            top: 50%;
-            left: -25px; /* Positioned with ~10% overlap */
-            transform: translateY(-50%);
-            width: 28px; /* Made smaller */
-            height: 28px; /* Made smaller */
+            width: 32px; /* Tap area */
+            height: 32px; /* Tap area */
+            top: -16px;
+            left: -16px;
         }
         
         .note-btn svg {
             transition: fill 0.4s, stroke 0.4s;
+            width: 24px;
+            height: 24px;
         }
-
-        .note-btn.has-note {
-            background-color: white !important;
-            border-style: solid;
-            border-width: 2px;
-            box-shadow: none;
-        }
-        
-        .note-btn.has-note svg {
-            stroke: white !important; /* Stroke of icon becomes white */
-        }
-
 
         /* --- Line Styling --- */
         .line {
@@ -563,17 +553,15 @@
                     nodeEl.appendChild(addBtn);
                 }
                 
-                const noteIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>`;
+                const noteIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>`;
                 const noteBtnColor = node.branchColor || 'var(--core-node-color)';
-                const noteBtn = createActionButton(noteIconSVG, 'note-btn', () => openNoteEditor(node.id), noteBtnColor);
+                const noteBtn = createActionButton(noteIconSVG, 'note-btn', () => openNoteEditor(node.id));
+                const noteSvg = noteBtn.querySelector('svg');
+                noteSvg.style.stroke = noteBtnColor;
                 
                 if (node.note) {
-                    noteBtn.classList.add('has-note');
-                    noteBtn.style.borderColor = noteBtnColor;
-                    const svg = noteBtn.querySelector('svg');
-                    if(svg) {
-                        svg.style.fill = noteBtnColor;
-                    }
+                    noteSvg.style.fill = noteBtnColor;
+                    noteSvg.style.stroke = noteBtnColor;
                 }
                 nodeEl.appendChild(noteBtn);
 
@@ -599,7 +587,10 @@
                 e.stopPropagation();
                 onClick();
             });
-            btn.style.backgroundColor = color || '#6c757d';
+            // Only apply background color if it's not a note button
+            if (!className.includes('note-btn')) {
+                 btn.style.backgroundColor = color || '#6c757d';
+            }
             return btn;
         }
 
