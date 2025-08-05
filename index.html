@@ -200,7 +200,7 @@
             right: 20px;
             z-index: 100;
             display: flex;
-            flex-direction: column-reverse;
+            flex-direction: column; /* Changed from column-reverse */
             align-items: center;
         }
 
@@ -208,8 +208,8 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin-bottom: 15px;
-            transform-origin: bottom center;
+            margin-top: 15px; /* Changed from margin-bottom */
+            transform-origin: top center; /* Changed from bottom center */
             transform: scaleY(0);
             transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
