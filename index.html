@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1, maximum-scale=5">
     <title>Mobile Mindmap</title>
     <style>
         /* --- Basic Setup & Typography --- */
@@ -83,7 +83,7 @@
             font-size: 18px;
             font-weight: 700;
         }
-        
+       
         /* --- Node Action Buttons --- */
         .action-btn {
             position: absolute;
@@ -103,7 +103,7 @@
         .action-btn:active {
             transform: scale(0.9);
         }
-        
+       
         /* Hide buttons when the parent node is being edited */
         .node.is-editing .action-btn {
             opacity: 0;
@@ -123,19 +123,19 @@
             left: 50%;
             transform: translateX(-50%);
         }
-        
+       
         .del-btn {
             top: -16px;
             right: -16px;
         }
-        
+       
         .note-btn {
             width: 36px; /* Tap area increased */
             height: 36px; /* Tap area increased */
             top: -20px; /* Adjusted for new size */
             left: -20px; /* Adjusted for new size */
         }
-        
+       
         .note-btn svg {
             transition: fill 0.4s, stroke 0.4s;
             width: 30px; /* 25% larger */
@@ -150,9 +150,9 @@
             transition: transform 0.4s ease-out, width 0.4s ease-out, opacity 0.4s ease-out, background-color 0.4s;
             z-index: -1;
         }
-        
-        /* --- Note Editor Modal --- */
-        #note-editor-overlay {
+       
+        /* --- Note Editor & Alert Modal --- */
+        .modal-overlay {
             position: fixed;
             top: 0;
             left: 0;
@@ -163,17 +163,22 @@
             display: none; /* Initially hidden */
             align-items: center;
             justify-content: center;
+            -webkit-backdrop-filter: blur(2px);
+            backdrop-filter: blur(2px);
         }
 
-        #note-editor {
+        .modal-box {
             width: 90%;
-            height: 70%;
             max-width: 500px;
             background-color: white;
             border-radius: 12px;
             box-shadow: 0 5px 20px rgba(0,0,0,0.3);
             display: flex;
             flex-direction: column;
+        }
+
+        #note-editor {
+            height: 70%;
         }
 
         .note-header {
@@ -185,7 +190,7 @@
             justify-content: space-between;
             align-items: center;
         }
-        
+       
         .note-header-close {
             font-size: 24px;
             cursor: pointer;
@@ -201,6 +206,27 @@
             line-height: 1.6;
             outline: none;
         }
+
+        /* Custom Alert Box Styles */
+        #alert-box {
+            padding: 20px;
+            text-align: center;
+        }
+        #alert-message {
+            margin: 0 0 20px 0;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+        #alert-close-btn {
+            background-color: var(--core-node-color);
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
 
         /* --- Floating Action Button (FAB) Menu --- */
         #fab-container {
@@ -241,7 +267,7 @@
             cursor: pointer;
             transition: all 0.2s ease;
         }
-        
+       
         .fab-button {
             width: 48px;
             height: 48px;
@@ -311,7 +337,7 @@
         </div>
     </div>
 
-    <!-- Floating Action Button Menu for main controls - MOVED OUTSIDE OF #viewport -->
+    <!-- Floating Action Button Menu for main controls -->
     <div id="fab-container">
         <!-- Main button is now first -->
         <button id="fab-main-btn" title="Open Menu">
@@ -323,12 +349,12 @@
         </button>
         <!-- Menu expands below -->
         <div class="fab-menu">
-            <!-- Save Button -->
-            <button class="fab-button" id="save-btn" title="Save Mindmap">
+            <!-- Export Button -->
+            <button class="fab-button" id="export-btn" title="Export to File">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
             </button>
-            <!-- Load Button -->
-            <button class="fab-button" id="load-btn" title="Load Mindmap">
+            <!-- Import Button -->
+            <button class="fab-button" id="import-btn" title="Import from File">
                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
             </button>
             <!-- Recenter Button -->
@@ -338,8 +364,9 @@
         </div>
     </div>
 
-    <div id="note-editor-overlay">
-        <div id="note-editor">
+    <!-- Note Editor Modal -->
+    <div id="note-editor-overlay" class="modal-overlay">
+        <div id="note-editor" class="modal-box">
             <div class="note-header">
                 <span id="note-title">Edit Note</span>
                 <span class="note-header-close">&times;</span>
@@ -347,6 +374,15 @@
             <div id="note-content" class="note-content" contenteditable="true"></div>
         </div>
     </div>
+
+    <!-- Custom Alert Modal -->
+    <div id="alert-overlay" class="modal-overlay">
+        <div id="alert-box" class="modal-box">
+            <p id="alert-message"></p>
+            <button id="alert-close-btn">OK</button>
+        </div>
+    </div>
+
 
     <!-- Hidden file input for loading -->
     <input type="file" id="file-input" style="display: none;" accept=".json,application/json">
@@ -361,12 +397,17 @@
         const fileInput = document.getElementById('file-input');
         const fabContainer = document.getElementById('fab-container');
         const fabMainBtn = document.getElementById('fab-main-btn');
-        const saveBtn = document.getElementById('save-btn');
-        const loadBtn = document.getElementById('load-btn');
+        const exportBtn = document.getElementById('export-btn');
+        const importBtn = document.getElementById('import-btn');
         const recenterBtn = document.getElementById('recenter-btn');
+        const alertOverlay = document.getElementById('alert-overlay');
+        const alertMessage = document.getElementById('alert-message');
+        const alertCloseBtn = document.getElementById('alert-close-btn');
+
 
         // --- 2. CONFIGURATION & STATE ---
-        
+        const STORAGE_KEY = 'mobileMindmapState';
+
         // Helper function to generate and shuffle the offset array
         function createRandomizedOffsets() {
             const baseOffsets = [20, 40, 60, 80, 100, -20, -40, -60, -80, -100];
@@ -385,10 +426,10 @@
             nodeHeight: 40,
             hSpacing: 20,
             vSpacing: [180, 220, 260],
-            randomizedOffsets: createRandomizedOffsets(), // Pre-calculate the randomized array
+            randomizedOffsets: createRandomizedOffsets(),
             lineThickness: [5, 4, 2],
             branchColors: ['#e6194B', '#3cb44b', '#4363d8', '#f58231', '#911eb4'],
-            backgroundTints: [55, 70, 85], // Tints for confirmed nodes at depth 1, 2, 3
+            backgroundTints: [55, 70, 85],
             placeholderTexts: [
                 "What next?", "Why this…?", "More ideas…", "New point?", "How come…?",
                 "Links to…", "Dig deeper…", "What if...?", "Explain more…", "So what?"
@@ -410,8 +451,8 @@
             editingNodeId: null,
             placeholderIndex: 0,
         };
-        
-        // --- 3. UTILITY FUNCTIONS ---
+       
+        // --- 3. UTILITY & UI FUNCTIONS ---
         function lightenColor(hex, percent) {
             if (!hex) return '#ffffff';
             let r = parseInt(hex.substring(1, 3), 16);
@@ -425,6 +466,15 @@
             return `rgb(${r}, ${g}, ${b})`;
         }
 
+        function showMessage(message) {
+            alertMessage.textContent = message;
+            alertOverlay.style.display = 'flex';
+        }
+
+        function hideMessage() {
+            alertOverlay.style.display = 'none';
+        }
+
 
         // --- 4. LAYOUT ENGINE ---
         function calculateLayout() {
@@ -432,7 +482,7 @@
             const coreNode = state.nodes[0];
             positionNodeAndChildren(coreNode.id, config.canvasWidth / 2, 200);
         }
-        
+       
         function positionNodeAndChildren(nodeId, x, y) {
             const node = findNodeById(nodeId);
             if (!node) return 0;
@@ -514,12 +564,12 @@
                 if(node.width) {
                     nodeEl.style.width = `${node.width}px`;
                 }
-                
+               
                 const textEl = document.createElement('div');
                 textEl.className = 'node-text';
                 textEl.textContent = node.text;
                 textEl.setAttribute('contenteditable', 'false');
-                
+               
                 const style = config.branchStyles[node.branchIndex || 0];
                 textEl.style.fontFamily = style.fontFamily;
                 textEl.style.fontSize = style.fontSizes[node.depth];
@@ -528,7 +578,7 @@
                 }
 
                 nodeEl.appendChild(textEl);
-                
+               
                 if (node.depth === 0) {
                     if (node.text === node.placeholder) {
                         nodeEl.style.backgroundColor = 'white';
@@ -549,9 +599,9 @@
                         textEl.style.color = node.branchColor;
                     }
                 }
-                
+               
                 const children = state.nodes.filter(n => n.parentId === node.id);
-                
+               
                 // Create and append action buttons directly to the node element
                 if (node.depth < 3 && children.length < 5) {
                     let addBtnColor;
@@ -564,13 +614,13 @@
                     const addBtn = createActionButton('+', 'add-btn', () => addChildNode(node.id), addBtnColor);
                     nodeEl.appendChild(addBtn);
                 }
-                
+               
                 const noteIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>`;
                 const noteBtnColor = node.branchColor || 'var(--core-node-color)';
                 const noteBtn = createActionButton(noteIconSVG, 'note-btn', () => openNoteEditor(node.id));
                 const noteSvg = noteBtn.querySelector('svg');
                 noteSvg.style.stroke = noteBtnColor;
-                
+               
                 if (node.note) {
                     noteSvg.style.fill = noteBtnColor;
                 } else {
@@ -622,11 +672,11 @@
             if (targetNode.branchColor) {
                 lineEl.style.backgroundColor = targetNode.branchColor;
             }
-            
+           
             const adjustedY = sourceNode.y - (thickness / 2);
             lineEl.style.transform = `translate(${sourceNode.x}px, ${adjustedY}px) rotate(${angle}deg)`;
             lineEl.style.width = `${distance}px`;
-            
+           
             return lineEl;
         }
 
@@ -636,7 +686,7 @@
             const parent = findNodeById(parentId);
             // Use the new randomized offset array, picking based on the unique nextId
             const jitterY = depth > 0 ? config.randomizedOffsets[id % config.randomizedOffsets.length] : 0;
-            
+           
             let branchColor = null, branchIndex = 0;
             if (depth === 1) {
                 const usedColors = new Set(state.nodes.filter(n => n.parentId === parentId).map(c => c.branchColor));
@@ -667,21 +717,20 @@
 
             const children = state.nodes.filter(n => n.parentId === parentId);
             if (children.length >= 5) {
-                console.log("Max branches reached for this node.");
+                showMessage("A maximum of 5 branches per node is allowed.");
                 return;
             }
-            
+           
             const siblingIndex = children.length;
             const newNode = createNode(null, parentId, parentNode.depth + 1, siblingIndex);
-            
+           
             state.nodes.push(newNode);
             updateAndRender();
         }
 
         function deleteNode(nodeId) {
             if (nodeId === 0 && state.nodes.length > 1) {
-                // Prevent deleting the root node if it has children
-                alert("Cannot delete the main idea if it has branches. Delete the branches first.");
+                showMessage("Cannot delete the main idea if it has branches. Please delete the branches first.");
                 return;
             }
 
@@ -700,7 +749,7 @@
             state.nodes = state.nodes.filter(n => !nodesToDelete.has(n.id));
             if (state.nodes.length === 0) {
                 // If all nodes are deleted, re-initialize
-                init();
+                init(true); // force creation of new map
             } else {
                 updateAndRender();
             }
@@ -713,9 +762,10 @@
         function updateAndRender() {
             calculateLayout();
             render();
+            saveStateToLocalStorage(); // Auto-save on every meaningful change
         }
 
-        // --- 7. VIEWPORT & FILE I/O ---
+        // --- 7. DATA PERSISTENCE & FILE I/O ---
         function recenterView() {
             if (state.nodes.length === 0) return;
             const coreNode = state.nodes[0];
@@ -730,9 +780,20 @@
                 behavior: 'smooth'
             });
         }
+        
+        function saveStateToLocalStorage() {
+            try {
+                const stateToSave = {
+                    ...state,
+                    nodes: state.nodes.map(({ parent, ...rest }) => rest)
+                };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+            } catch (error) {
+                console.error("Could not save to local storage:", error);
+            }
+        }
 
-        function saveMindmap() {
-            // Create a serializable version of the state, removing circular 'parent' references
+        function exportMindmapToFile() {
             const stateToSave = {
                 ...state,
                 nodes: state.nodes.map(({ parent, ...rest }) => rest) // Exclude parent property
@@ -747,11 +808,10 @@
             fabContainer.classList.remove('open');
         }
 
-        function loadMindmap(event) {
+        function importMindmapFromFile(event) {
             const file = event.target.files[0];
-            if (!file) {
-                return;
-            }
+            if (!file) return;
+            
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
@@ -766,17 +826,15 @@
                     }
                 } catch (error) {
                     console.error("Failed to load or parse mindmap file:", error);
-                    alert("Could not load file. It might be corrupted or in the wrong format.");
+                    showMessage("Could not load file. It might be corrupted or in the wrong format.");
                 }
             };
             reader.readAsText(file);
             fabContainer.classList.remove('open');
-            // Reset file input to allow loading the same file again
-            fileInput.value = '';
+            fileInput.value = ''; // Reset file input
         }
 
         // --- 8. NODE EDITING & NOTES ---
-        // Store the original viewport content at the start
         const viewportMeta = document.querySelector('meta[name="viewport"]');
         const originalViewportContent = viewportMeta.getAttribute('content');
 
@@ -784,11 +842,10 @@
             const nodeId = parseInt(nodeEl.dataset.id, 10);
             const node = findNodeById(nodeId);
             if (!node) return;
-            
-            // Add editing class to hide buttons
+           
             nodeEl.classList.add('is-editing');
 
-            // 1. Make editable and focus immediately to trigger the keyboard.
+            // 1. Make editable and focus immediately.
             textEl.setAttribute('contenteditable', 'true');
             if (textEl.textContent === node.placeholder) {
                 textEl.textContent = '';
@@ -796,24 +853,21 @@
             textEl.focus();
             document.execCommand('selectAll', false, null);
 
-            // 2. Force the zoom to reset by temporarily changing the viewport meta tag.
+            // 2. Force zoom reset by temporarily changing the viewport meta tag.
             viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
 
-            // 3. After the browser has had a moment to process the zoom reset, scroll the element into view.
+            // 3. Scroll the element into view.
             requestAnimationFrame(() => {
                 nodeEl.scrollIntoView({
-                    behavior: 'auto', // Instant scroll
+                    behavior: 'auto',
                     block: 'center',
                     inline: 'center'
                 });
             });
 
-            // The rest of the blur/keydown logic remains the same
             function onBlur() {
-                // Remove editing class to show buttons again
                 nodeEl.classList.remove('is-editing');
-
-                // 4. IMPORTANT: Restore the original viewport settings to allow zooming again.
+                // 4. Restore original viewport settings.
                 viewportMeta.setAttribute('content', originalViewportContent);
 
                 textEl.setAttribute('contenteditable', 'false');
@@ -841,7 +895,7 @@
             state.editingNodeId = nodeId;
             const node = findNodeById(nodeId);
             if (!node) return;
-            
+           
             document.getElementById('note-title').textContent = `Note for: ${node.text}`;
             document.getElementById('note-content').innerHTML = node.note;
             noteEditorOverlay.style.display = 'flex';
@@ -876,7 +930,7 @@
                 lastTap = currentTime;
             }
         });
-        
+       
         noteEditorOverlay.querySelector('.note-header-close').addEventListener('click', closeNoteEditor);
         noteEditorOverlay.addEventListener('click', (e) => {
             if (e.target === noteEditorOverlay) {
@@ -884,30 +938,57 @@
             }
         });
 
+        // Alert Modal Listeners
+        alertCloseBtn.addEventListener('click', hideMessage);
+        alertOverlay.addEventListener('click', (e) => {
+            if (e.target === alertOverlay) {
+                hideMessage();
+            }
+        });
+
+
         // FAB Menu Listeners
         fabMainBtn.addEventListener('click', () => {
             fabContainer.classList.toggle('open');
         });
-        saveBtn.addEventListener('click', saveMindmap);
-        loadBtn.addEventListener('click', () => fileInput.click());
+        exportBtn.addEventListener('click', exportMindmapToFile);
+        importBtn.addEventListener('click', () => fileInput.click());
         recenterBtn.addEventListener('click', () => {
             recenterView();
             fabContainer.classList.remove('open');
         });
-        fileInput.addEventListener('change', loadMindmap);
-        
+        fileInput.addEventListener('change', importMindmapFromFile);
+       
         // --- 10. INITIALIZATION ---
-        function init() {
-            state.nodes = [];
-            state.nextId = 0;
-            state.placeholderIndex = 0;
-            
-            const coreNode = createNode('Your Big Idea', null, 0, 0);
-            state.nodes.push(coreNode);
-            
-            addChildNode(coreNode.id);
-            addChildNode(coreNode.id);
-            
+        function init(forceNew = false) {
+            let loadedState = null;
+            if (!forceNew) {
+                try {
+                    const savedData = localStorage.getItem(STORAGE_KEY);
+                    if (savedData) {
+                        loadedState = JSON.parse(savedData);
+                    }
+                } catch (error) {
+                    console.error("Failed to load state from local storage:", error);
+                    loadedState = null;
+                }
+            }
+
+            if (loadedState && loadedState.nodes && loadedState.nodes.length > 0) {
+                state = loadedState;
+            } else {
+                // Create a default map if nothing is loaded or if forced
+                state.nodes = [];
+                state.nextId = 0;
+                state.placeholderIndex = 0;
+               
+                const coreNode = createNode('Your Big Idea', null, 0, 0);
+                state.nodes.push(coreNode);
+               
+                addChildNode(coreNode.id);
+                addChildNode(coreNode.id);
+            }
+           
             updateAndRender();
             setTimeout(recenterView, 100);
         }
