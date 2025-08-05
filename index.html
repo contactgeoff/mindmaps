@@ -333,7 +333,6 @@
                 const nodeEl = document.createElement('div');
                 nodeEl.className = `node depth-${node.depth}`;
                 nodeEl.dataset.id = node.id;
-                // **FIX**: Use CSS transform for robust centering of dynamic-width elements
                 nodeEl.style.left = `${node.x}px`;
                 nodeEl.style.top = `${node.y}px`;
                 nodeEl.style.transform = `translate(-50%, -50%)`;
@@ -355,7 +354,6 @@
                 if (node.depth === 0) {
                     if (node.text === node.placeholder) {
                         nodeEl.style.backgroundColor = 'white';
-                        // **FIX**: Set border width to match level 1 line thickness
                         nodeEl.style.border = `${config.lineThickness[0]}px solid ${config.branchColors[2]}`;
                         textEl.style.color = config.branchColors[2];
                     }
@@ -443,8 +441,6 @@
                 lineEl.style.backgroundColor = targetNode.branchColor;
             }
             
-            // **FIX**: The line's own thickness was throwing off the vertical alignment.
-            // This adjusts the starting Y position to account for it.
             const adjustedY = sourceNode.y - (thickness / 2);
             lineEl.style.transform = `translate(${sourceNode.x}px, ${adjustedY}px) rotate(${angle}deg)`;
             lineEl.style.width = `${distance}px`;
@@ -548,13 +544,22 @@
             const node = findNodeById(nodeId);
             if (!node) return;
 
+            // **NEW**: Scroll node into view before editing
+            const targetX = node.x - (viewport.clientWidth / 2);
+            const targetY = node.y - (viewport.clientHeight / 3); // Position in top third
+            viewport.scrollTo({ top: targetY, left: targetX, behavior: 'smooth' });
+
             if (textEl.textContent === node.placeholder) {
                 textEl.textContent = '';
             }
 
             textEl.setAttribute('contenteditable', 'true');
-            textEl.focus();
-            document.execCommand('selectAll', false, null);
+            
+            // Use a timeout to allow the scroll to finish before focusing
+            setTimeout(() => {
+                textEl.focus();
+                document.execCommand('selectAll', false, null);
+            }, 400);
             
             function onBlur() {
                 textEl.setAttribute('contenteditable', 'false');
