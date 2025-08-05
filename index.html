@@ -208,7 +208,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin-top: 5px; /* Reduced space */
+            margin-top: 8px; /* Reduced space */
             transform-origin: top center;
             transform: scaleY(0);
             transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -237,7 +237,7 @@
             width: 48px;
             height: 48px;
             font-size: 22px;
-            margin-top: 10px;
+            margin-top: 12px;
             background-color: #5a2a82; /* Lighter Purple */
             border-radius: 50%;
             color: white;
@@ -750,44 +750,40 @@
         }
 
         // --- 8. NODE EDITING & NOTES ---
+        // Store the original viewport content at the start
+        const viewportMeta = document.querySelector('meta[name="viewport"]');
+        const originalViewportContent = viewportMeta.getAttribute('content');
+
         function enableEditing(nodeEl, textEl) {
             const nodeId = parseInt(nodeEl.dataset.id, 10);
             const node = findNodeById(nodeId);
             if (!node) return;
 
-            // Set contenteditable immediately
+            // 1. Make editable and focus immediately to trigger the keyboard.
             textEl.setAttribute('contenteditable', 'true');
             if (textEl.textContent === node.placeholder) {
                 textEl.textContent = '';
             }
-
-            // Define the function that will run once the keyboard is up
-            const onViewportResize = () => {
-                // Calculate the scroll position to center the node in the new, smaller viewport
-                const targetX = node.x - (window.visualViewport.width / 2);
-                const targetY = node.y - (window.visualViewport.height / 2);
-
-                // Scroll instantly to the new position
-                viewport.scrollTo({
-                    top: targetY,
-                    left: targetX,
-                    behavior: 'auto' // Use 'auto' for an instant jump
-                });
-            };
-
-            // Listen for the viewport to resize (which happens when the keyboard appears)
-            // This is a one-time listener that will be removed automatically.
-            window.visualViewport.addEventListener('resize', onViewportResize, { once: true });
-
-            // Now, focus the element. This triggers the keyboard, which will trigger our resize listener.
             textEl.focus();
             document.execCommand('selectAll', false, null);
 
+            // 2. Force the zoom to reset by temporarily changing the viewport meta tag.
+            viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+
+            // 3. After the browser has had a moment to process the zoom reset, scroll the element into view.
+            requestAnimationFrame(() => {
+                nodeEl.scrollIntoView({
+                    behavior: 'auto', // Instant scroll
+                    block: 'center',
+                    inline: 'center'
+                });
+            });
+
             // The rest of the blur/keydown logic remains the same
             function onBlur() {
-                // Make sure our one-time resize listener is gone, just in case.
-                window.visualViewport.removeEventListener('resize', onViewportResize);
-                
+                // 4. IMPORTANT: Restore the original viewport settings to allow zooming again.
+                viewportMeta.setAttribute('content', originalViewportContent);
+
                 textEl.setAttribute('contenteditable', 'false');
                 if (node) {
                     node.text = textEl.textContent.trim() || node.placeholder;
