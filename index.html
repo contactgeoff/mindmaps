@@ -366,6 +366,18 @@
         const recenterBtn = document.getElementById('recenter-btn');
 
         // --- 2. CONFIGURATION & STATE ---
+        
+        // Helper function to generate and shuffle the offset array
+        function createRandomizedOffsets() {
+            const baseOffsets = [20, 40, 60, 80, 100, -20, -40, -60, -80, -100];
+            // Fisher-Yates shuffle algorithm
+            for (let i = baseOffsets.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [baseOffsets[i], baseOffsets[j]] = [baseOffsets[j], baseOffsets[i]];
+            }
+            return baseOffsets;
+        }
+
         const config = {
             canvasWidth: 5000,
             canvasHeight: 8000,
@@ -373,7 +385,7 @@
             nodeHeight: 40,
             hSpacing: 20,
             vSpacing: [180, 220, 260],
-            levelOffsets: [0, 60, -40, 80, -20],
+            randomizedOffsets: createRandomizedOffsets(), // Pre-calculate the randomized array
             lineThickness: [5, 4, 2],
             branchColors: ['#e6194B', '#3cb44b', '#4363d8', '#f58231', '#911eb4'],
             backgroundTints: [55, 70, 85], // Tints for confirmed nodes at depth 1, 2, 3
@@ -622,7 +634,8 @@
         function createNode(text, parentId, depth, siblingIndex) {
             const id = state.nextId++;
             const parent = findNodeById(parentId);
-            const jitterY = depth > 0 ? config.levelOffsets[(siblingIndex + (parent ? parent.branchIndex * 2 : 0)) % config.levelOffsets.length] : 0;
+            // Use the new randomized offset array, picking based on the unique nextId
+            const jitterY = depth > 0 ? config.randomizedOffsets[id % config.randomizedOffsets.length] : 0;
             
             let branchColor = null, branchIndex = 0;
             if (depth === 1) {
