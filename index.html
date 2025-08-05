@@ -251,11 +251,11 @@
             margin: 10px 0;
         }
 
-        #alert-box, #startup-choice-modal {
+        #alert-box, #startup-choice-modal, #name-input-modal {
             padding: 20px;
             text-align: center;
         }
-        #alert-message, #startup-choice-modal p {
+        #alert-message, #startup-choice-modal p, #name-input-modal p {
             margin: 0 0 20px 0;
             font-size: 16px;
             line-height: 1.5;
@@ -276,6 +276,16 @@
         }
         #startup-continue-btn {
             background-color: #3cb44b;
+        }
+        
+        #author-name-input {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            margin-bottom: 20px;
+            box-sizing: border-box;
         }
 
         /* Instruction Modal */
@@ -468,6 +478,15 @@
         </div>
     </div>
 
+    <!-- Name Input Modal -->
+    <div id="name-input-overlay" class="modal-overlay">
+        <div id="name-input-modal" class="modal-box">
+            <p>To save your file, please enter your name.</p>
+            <input type="text" id="author-name-input" placeholder="First Name and Surname">
+            <button id="name-save-btn" class="modal-button">Save</button>
+        </div>
+    </div>
+
     <!-- Instruction Modal -->
     <div id="instruction-overlay" class="modal-overlay">
         <div id="instruction-modal" class="modal-box">
@@ -515,6 +534,10 @@
         const startupNewBtn = document.getElementById('startup-new-btn');
         const instructionOverlay = document.getElementById('instruction-overlay');
         const instructionCloseBtn = document.getElementById('instruction-close-btn');
+        // Name Input Modal
+        const nameInputOverlay = document.getElementById('name-input-overlay');
+        const authorNameInput = document.getElementById('author-name-input');
+        const nameSaveBtn = document.getElementById('name-save-btn');
 
 
         // --- 2. CONFIGURATION & STATE ---
@@ -561,7 +584,8 @@
             nextId: 0,
             editingNodeId: null,
             placeholderIndex: 0,
-            savedSelection: null // To store cursor position in note editor
+            savedSelection: null, // To store cursor position in note editor
+            authorName: null
         };
         
         // --- 3. UTILITY & UI FUNCTIONS ---
@@ -845,11 +869,24 @@
         }
 
         function exportMindmapToFile() {
+            if (!state.authorName) {
+                nameInputOverlay.style.display = 'flex';
+                authorNameInput.focus();
+                return;
+            }
+
             const stateToSave = { ...state, nodes: state.nodes.map(({ parent, ...rest }) => rest) };
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(stateToSave, null, 2));
             const downloadAnchorNode = document.createElement('a');
+            
+            const coreNode = state.nodes.find(n => n.depth === 0);
+            const coreValue = coreNode ? coreNode.text : 'My';
+            const sanitizedCoreValue = coreValue.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            const sanitizedAuthorName = state.authorName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+          
             downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", "mindmap.json");
+            downloadAnchorNode.setAttribute("download", `${sanitizedAuthorName}_${sanitizedCoreValue}_mindmap.json`);
+            
             document.body.appendChild(downloadAnchorNode);
             downloadAnchorNode.click();
             downloadAnchorNode.remove();
@@ -1217,6 +1254,17 @@
             imageInput.value = ''; // Reset for next use
         });
 
+        nameSaveBtn.addEventListener('click', () => {
+            const name = authorNameInput.value.trim();
+            if (name) {
+                state.authorName = name;
+                nameInputOverlay.style.display = 'none';
+                exportMindmapToFile();
+            } else {
+                showMessage("Please enter your name to save the file.");
+            }
+        });
+
         alertCloseBtn.addEventListener('click', hideMessage);
         alertOverlay.addEventListener('click', (e) => {
             if (e.target === alertOverlay) hideMessage();
@@ -1236,6 +1284,7 @@
             state.nodes = [];
             state.nextId = 0;
             state.placeholderIndex = 0;
+            state.authorName = null;
             const coreNode = createNode('Your Big Idea', null, 0);
             state.nodes.push(coreNode);
             addChildNode(coreNode.id);
