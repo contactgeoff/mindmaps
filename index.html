@@ -622,7 +622,7 @@
         function createNode(text, parentId, depth, siblingIndex) {
             const id = state.nextId++;
             const parent = findNodeById(parentId);
-            const jitterY = depth > 0 ? config.levelOffsets[siblingIndex % config.levelOffsets.length] : 0;
+            const jitterY = depth > 0 ? config.levelOffsets[(siblingIndex + (parent ? parent.branchIndex : 0)) % config.levelOffsets.length] : 0;
             
             let branchColor = null, branchIndex = 0;
             if (depth === 1) {
