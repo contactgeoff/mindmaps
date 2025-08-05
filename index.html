@@ -208,7 +208,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin-top: 10px; /* Reduced space */
+            margin-top: 5px; /* Reduced space */
             transform-origin: top center;
             transform: scaleY(0);
             transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -755,49 +755,58 @@
             const node = findNodeById(nodeId);
             if (!node) return;
 
-            // This function will be called AFTER the scroll to focus and enable editing
-            const focusAndEdit = () => {
-                if (textEl.textContent === node.placeholder) {
-                    textEl.textContent = '';
-                }
-                textEl.setAttribute('contenteditable', 'true');
-                textEl.focus();
-                document.execCommand('selectAll', false, null);
+            // Set contenteditable immediately
+            textEl.setAttribute('contenteditable', 'true');
+            if (textEl.textContent === node.placeholder) {
+                textEl.textContent = '';
+            }
 
-                function onBlur() {
-                    textEl.setAttribute('contenteditable', 'false');
-                    if (node) {
-                        node.text = textEl.textContent.trim() || node.placeholder;
-                    }
-                    textEl.removeEventListener('blur', onBlur);
-                    textEl.removeEventListener('keydown', onKeydown);
-                    state.editingNodeId = null;
-                    updateAndRender();
-                }
+            // Define the function that will run once the keyboard is up
+            const onViewportResize = () => {
+                // Calculate the scroll position to center the node in the new, smaller viewport
+                const targetX = node.x - (window.visualViewport.width / 2);
+                const targetY = node.y - (window.visualViewport.height / 2);
 
-                function onKeydown(e) {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        textEl.blur();
-                    }
-                }
-
-                textEl.addEventListener('blur', onBlur);
-                textEl.addEventListener('keydown', onKeydown);
+                // Scroll instantly to the new position
+                viewport.scrollTo({
+                    top: targetY,
+                    left: targetX,
+                    behavior: 'auto' // Use 'auto' for an instant jump
+                });
             };
-            
-            // Scroll the node to the center of the view first for a reliable focus experience.
-            const targetX = node.x - (viewport.clientWidth / 2);
-            const targetY = node.y - (viewport.clientHeight / 2);
 
-            viewport.scrollTo({
-                top: targetY,
-                left: targetX,
-                behavior: 'smooth'
-            });
+            // Listen for the viewport to resize (which happens when the keyboard appears)
+            // This is a one-time listener that will be removed automatically.
+            window.visualViewport.addEventListener('resize', onViewportResize, { once: true });
 
-            // Wait for the smooth scroll to finish before focusing to prevent layout jumps.
-            setTimeout(focusAndEdit, 400); 
+            // Now, focus the element. This triggers the keyboard, which will trigger our resize listener.
+            textEl.focus();
+            document.execCommand('selectAll', false, null);
+
+            // The rest of the blur/keydown logic remains the same
+            function onBlur() {
+                // Make sure our one-time resize listener is gone, just in case.
+                window.visualViewport.removeEventListener('resize', onViewportResize);
+                
+                textEl.setAttribute('contenteditable', 'false');
+                if (node) {
+                    node.text = textEl.textContent.trim() || node.placeholder;
+                }
+                textEl.removeEventListener('blur', onBlur);
+                textEl.removeEventListener('keydown', onKeydown);
+                state.editingNodeId = null;
+                updateAndRender();
+            }
+
+            function onKeydown(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    textEl.blur();
+                }
+            }
+
+            textEl.addEventListener('blur', onBlur);
+            textEl.addEventListener('keydown', onKeydown);
         }
 
         function openNoteEditor(nodeId) {
