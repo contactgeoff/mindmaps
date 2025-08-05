@@ -76,7 +76,7 @@
             outline: none;
             white-space: nowrap;
             text-align: center;
-            transition: font-size 0.4s;
+            transition: font-size 0.4s, color 0.4s;
         }
 
         .node.depth-0 .node-text {
@@ -85,22 +85,8 @@
         }
         
         /* --- Node Action Buttons --- */
-        .node-actions {
-            position: absolute;
-            bottom: -35px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 8px;
-            z-index: 5;
-        }
-
-        .node.depth-0 .node-actions {
-            bottom: auto;
-            top: -45px;
-        }
-        
         .action-btn {
+            position: absolute;
             width: 32px;
             height: 32px;
             border: none;
@@ -112,19 +98,40 @@
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: transform 0.1s ease, background-color 0.4s;
+            transition: transform 0.2s ease, background-color 0.4s, opacity 0.2s;
             line-height: 1;
+            z-index: 5;
         }
 
         .action-btn:active {
             transform: scale(0.9);
         }
-
-        .add-btn, .del-btn {
-             border-radius: 50%;
+        
+        /* Hide buttons when the parent node is being edited */
+        .node.is-editing .action-btn {
+            opacity: 0;
+            pointer-events: none;
         }
+
+        .add-btn {
+            border-radius: 50%;
+            bottom: -16px; /* Position half-way over the bottom edge */
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .del-btn {
+            border-radius: 50%;
+            top: 50%;
+            right: -16px; /* Position half-way over the right edge */
+            transform: translateY(-50%);
+        }
+        
         .note-btn {
             border-radius: 4px;
+            top: 50%;
+            left: -16px; /* Position half-way over the left edge */
+            transform: translateY(-50%);
         }
 
         .note-btn.has-note {
@@ -524,14 +531,14 @@
                         nodeEl.style.backgroundColor = lightenColor(node.branchColor, tint);
                     } else {
                         nodeEl.style.backgroundColor = lightenColor(node.branchColor, 90);
+                        // Set the placeholder text color to match the branch color
+                        textEl.style.color = node.branchColor;
                     }
                 }
                 
-                const actionsEl = document.createElement('div');
-                actionsEl.className = 'node-actions';
-
                 const children = state.nodes.filter(n => n.parentId === node.id);
                 
+                // Create and append action buttons directly to the node element
                 if (node.depth < 3 && children.length < 5) {
                     let addBtnColor;
                     if (node.depth === 0) {
@@ -541,7 +548,7 @@
                         addBtnColor = node.branchColor;
                     }
                     const addBtn = createActionButton('+', 'add-btn', () => addChildNode(node.id), addBtnColor);
-                    actionsEl.appendChild(addBtn);
+                    nodeEl.appendChild(addBtn);
                 }
                 
                 const noteBtnColor = node.branchColor || 'var(--core-node-color)';
@@ -550,15 +557,11 @@
                     noteBtn.classList.add('has-note');
                     noteBtn.style.boxShadow = `0 0 0 2px ${noteBtnColor}`;
                 }
-                actionsEl.appendChild(noteBtn);
+                nodeEl.appendChild(noteBtn);
 
                 if (node.depth > 0) {
                     const delBtn = createActionButton('&times;', 'del-btn', () => deleteNode(node.id), node.branchColor);
-                    actionsEl.appendChild(delBtn);
-                }
-                
-                if (actionsEl.children.length > 0) {
-                    nodeEl.appendChild(actionsEl);
+                    nodeEl.appendChild(delBtn);
                 }
 
                 canvas.appendChild(nodeEl);
@@ -758,6 +761,9 @@
             const nodeId = parseInt(nodeEl.dataset.id, 10);
             const node = findNodeById(nodeId);
             if (!node) return;
+            
+            // Add editing class to hide buttons
+            nodeEl.classList.add('is-editing');
 
             // 1. Make editable and focus immediately to trigger the keyboard.
             textEl.setAttribute('contenteditable', 'true');
@@ -781,6 +787,9 @@
 
             // The rest of the blur/keydown logic remains the same
             function onBlur() {
+                // Remove editing class to show buttons again
+                nodeEl.classList.remove('is-editing');
+
                 // 4. IMPORTANT: Restore the original viewport settings to allow zooming again.
                 viewportMeta.setAttribute('content', originalViewportContent);
 
