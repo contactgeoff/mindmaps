@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <!--
   Interactive Mindmap Creator
-  Version: 24.3 (UI Icon Polish)
-  Description: Added a white stroke to the 'note present' icon for consistency.
+  Version: 25.2 (Robust Clear & New)
+  Description: Changed 'Clear & New' to clear local storage and reload the page for a reliable reset.
 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Interactive Mindmap Creator (v24.3 UI)</title>
+  <title>Interactive Mindmap Creator (v25.2 Robust Reset)</title>
   <style>
     /* --- Basic page setup --- */
     body { margin: 0; font-family: sans-serif; overflow: hidden; }
@@ -201,7 +201,7 @@
     }
 
     /* --- Custom Modal Styling --- */
-    #custom-modal {
+    #custom-modal, #startup-modal {
         position: fixed;
         top: 50%;
         left: 50%;
@@ -216,19 +216,19 @@
         text-align: center;
         border: 1px solid #ddd;
     }
-    #modal-title {
+    #modal-title, #startup-modal h3 {
         margin-top: 0;
         font-size: 20px;
         font-weight: bold;
         color: #333;
     }
-    #modal-message {
+    #modal-message, #startup-modal p {
         font-size: 16px;
         color: #555;
         margin-top: 10px;
         line-height: 1.5;
     }
-    #modal-buttons {
+    #modal-buttons, #startup-buttons {
         margin-top: 25px;
         display: flex;
         justify-content: center;
@@ -263,6 +263,14 @@
     .modal-btn-secondary:hover {
         background-color: #e0e0e0;
     }
+     #startup-continue-btn {
+        background-color: #2E7D32;
+        color: white;
+        border-color: #2E7D32;
+    }
+    #startup-continue-btn:hover {
+        background-color: #1B5E20;
+    }
 
     /* --- Instruction Modal Styling --- */
     #instruction-modal-overlay {
@@ -273,7 +281,7 @@
       height: 100%;
       z-index: 300; /* Highest z-index */
       background-color: rgba(0,0,0,0.4);
-      display: flex;
+      display: none; /* Initially hidden */
       align-items: center;
       justify-content: center;
     }
@@ -444,7 +452,7 @@
         <li><strong>Add or remove ideas:</strong> Click the <strong>+</strong> button to add a new idea. You can add up to <strong>five</strong> branches from each box and go <strong>three</strong> levels deep. Clcik the <strong>x</strong> to remove any you don't need.</li>
         <li><strong>Arrange your map:</strong> Hold and drag on any box to move it around and make your map easier to read.</li>
         <li><strong>Add notes &amp; pictures:</strong> Click the <strong>Note icon</strong> on any box to open a note. To add a picture, find one online, right-click and 'Copy Image', then paste it straight into the note.</li>
-        <li><strong>Save your work:</strong> Use the <strong>Save Mindmap</strong> button to download your file. You must type your name to save it.</li>
+        <li><strong>Save your work:</strong> Your work is saved automatically. Use the <strong>Save Mindmap</strong> button to download a file. You must type your name to save it.</li>
         <li><strong>Print your map:</strong> After saving, use the 'Print Mindmap' button to create a PDF with your map and all your notes.</li>
       </ul>
     </div>
@@ -486,11 +494,24 @@
     </div>
   </div>
 
+  <!-- Startup Choice Modal -->
+  <div id="startup-modal-overlay" class="modal-overlay" style="display: none; z-index: 200;">
+    <div id="startup-modal">
+        <h3>Welcome Back!</h3>
+        <p>Continue where you left off, or start a new mindmap?</p>
+        <div id="startup-buttons">
+            <button id="startup-new-btn" class="modal-btn modal-btn-secondary">Start New</button>
+            <button id="startup-continue-btn" class="modal-btn modal-btn-primary">Continue</button>
+        </div>
+    </div>
+  </div>
+
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
 
       // --- 1. CONFIGURATION ---
+      const STORAGE_KEY = 'desktopMindmapState';
       const config = {
         radius: 150, // Increased from 120 to prevent initial node overlap
         jitterDegrees: 20, 
@@ -1198,6 +1219,7 @@
         simulation.nodes(nodes);
         simulation.force('link').links(links);
         simulation.alpha(0.3).restart();
+        saveStateToLocalStorage(); // Auto-save on every update
       }
 
       // --- 8. SIMULATION AND EVENT HANDLERS ---
@@ -1259,6 +1281,49 @@
       }
 
       // --- 9. SAVE/LOAD/CLEAR FUNCTIONS ---
+      function saveStateToLocalStorage() {
+        try {
+            const savableNodes = nodes.map(node => ({
+                id: node.id, x: node.x, y: node.y, fx: node.fx, fy: node.fy,
+                parentId: node.parent ? node.parent.id : null,
+                childrenCount: node.childrenCount, depth: node.depth,
+                branchColor: node.branchColor, note: node.note,
+                fontFamily: node.fontFamily, branchIndex: node.branchIndex,
+                value: node.input ? node.input.value : (node.value || ''),
+                placeholder: node.placeholder
+            }));
+            const savableLinks = links.map(link => ({
+                sourceId: link.source.id, targetId: link.target.id
+            }));
+            const stateToSave = {
+                nodes: savableNodes, links: savableLinks, nextId: nextId, authorName: authorName
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+        } catch (error) {
+            console.error("Could not save to local storage:", error);
+        }
+      }
+
+      function loadFromStorage() {
+        try {
+            const savedData = localStorage.getItem(STORAGE_KEY);
+            if (savedData) {
+                const loadedState = JSON.parse(savedData);
+                if (processLoadedData(JSON.stringify(loadedState))) {
+                    authorName = loadedState.authorName || '';
+                    if (authorName) {
+                        document.getElementById('author-name-input').value = authorName;
+                        document.getElementById('print-mindmap-btn').style.display = 'flex';
+                    }
+                    return true;
+                }
+            }
+        } catch (error) {
+            console.error("Failed to load state from local storage:", error);
+        }
+        return false;
+      }
+
       function triggerSave() {
         try {
           const authorInput = document.getElementById('author-name-input');
@@ -1294,7 +1359,8 @@
           const mindmapData = {
             nodes: savableNodes,
             links: savableLinks,
-            nextId: nextId
+            nextId: nextId,
+            authorName: authorName
           };
           
           const mindmapJSON = JSON.stringify(mindmapData, null, 2);
@@ -1432,6 +1498,7 @@
           authorName = '';
           placeholderIndex = 0;
           document.getElementById('print-mindmap-btn').style.display = 'none';
+          document.getElementById('author-name-input').value = '';
 
           const width = window.innerWidth;
           const height = window.innerHeight;
@@ -1451,7 +1518,7 @@
           };
           nodes.push(coreNode);
           
-          // Call update again to draw the new core node
+          // Call update again to draw the new core node and trigger auto-save
           update();
       }
 
@@ -1608,14 +1675,36 @@
       function init() {
         handleResize();
         linkSelection = svg.selectAll('line:not(.note-connector-line)');
-
-        startNewMindmap();
-
-        window.addEventListener('resize', handleResize);
         
         const jsonFileInput = document.getElementById('json-file-input');
         const imageFileInput = document.getElementById('image-file-input');
         const authorInput = document.getElementById('author-name-input');
+        const instructionOverlay = document.getElementById('instruction-modal-overlay');
+        const instructionCloseBtn = document.getElementById('instruction-modal-close-btn');
+
+        // --- New Startup Logic ---
+        const startupModalOverlay = document.getElementById('startup-modal-overlay');
+        const hasSavedData = localStorage.getItem(STORAGE_KEY);
+
+        if (hasSavedData) {
+            startupModalOverlay.style.display = 'block';
+        } else {
+            instructionOverlay.style.display = 'flex';
+            startNewMindmap();
+        }
+
+        document.getElementById('startup-continue-btn').addEventListener('click', () => {
+            startupModalOverlay.style.display = 'none';
+            if (!loadFromStorage()) {
+                startNewMindmap(); // Fallback if loading fails
+            }
+        });
+
+        document.getElementById('startup-new-btn').addEventListener('click', () => {
+            startupModalOverlay.style.display = 'none';
+            startNewMindmap();
+            instructionOverlay.style.display = 'flex';
+        });
 
         // Set up the single, global event listener for the image file input
         imageFileInput.addEventListener('change', (e) => {
@@ -1674,31 +1763,35 @@
         d3.select('#clear-new-btn').on('click', () => {
             showModal(
                 'Clear Mindmap?',
-                'This will clear the current mindmap. All unsaved changes will be lost.',
+                'This will clear the current mindmap and start a new one.',
                 [
                     { text: 'Cancel', class: 'secondary' },
-                    { text: 'Clear', class: 'primary', action: startNewMindmap }
+                    { 
+                        text: 'Clear', 
+                        class: 'primary', 
+                        action: () => {
+                            localStorage.removeItem(STORAGE_KEY);
+                            location.reload();
+                        } 
+                    }
                 ]
             );
         });
 
         d3.select('#print-mindmap-btn').on('click', printMindmap);
         
-        // --- Instruction Modal Logic ---
-        const instructionOverlay = document.getElementById('instruction-modal-overlay');
-        const instructionCloseBtn = document.getElementById('instruction-modal-close-btn');
-
         const closeInstructions = () => {
             instructionOverlay.style.display = 'none';
         };
 
         instructionCloseBtn.addEventListener('click', closeInstructions);
         instructionOverlay.addEventListener('click', (event) => {
-            // Only close if the dark overlay itself is clicked, not the modal content
             if (event.target === instructionOverlay) {
                 closeInstructions();
             }
         });
+        
+        window.addEventListener('resize', handleResize);
       }
 
       init();
