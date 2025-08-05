@@ -208,7 +208,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin-top: 15px;
+            margin-top: 10px; /* Reduced space */
             transform-origin: top center;
             transform: scaleY(0);
             transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -218,9 +218,9 @@
             transform: scaleY(1);
         }
 
-        .fab-button, #fab-main-btn {
-            width: 56px;
-            height: 56px;
+        #fab-main-btn {
+            width: 48px; /* Matched size */
+            height: 48px; /* Matched size */
             border-radius: 50%;
             background-color: var(--fab-color);
             color: white;
@@ -239,12 +239,21 @@
             font-size: 22px;
             margin-top: 10px;
             background-color: #5a2a82; /* Lighter Purple */
+            border-radius: 50%;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            box-shadow: 0 4px 12px var(--shadow-medium);
+            cursor: pointer;
+            transition: all 0.2s ease;
         }
 
         /* Hamburger Icon Styling */
         .hamburger-icon {
-            width: 28px;
-            height: 22px;
+            width: 24px; /* Adjusted for smaller button */
+            height: 18px; /* Adjusted for smaller button */
             position: relative;
             transform: rotate(0deg);
             transition: .5s ease-in-out;
@@ -253,7 +262,7 @@
         .hamburger-icon span {
             display: block;
             position: absolute;
-            height: 4px;
+            height: 3px; /* Adjusted for smaller icon */
             width: 100%;
             background: #ffffff;
             border-radius: 2px;
@@ -264,22 +273,22 @@
         }
 
         .hamburger-icon span:nth-child(1) { top: 0px; }
-        .hamburger-icon span:nth-child(2) { top: 9px; }
-        .hamburger-icon span:nth-child(3) { top: 18px; }
+        .hamburger-icon span:nth-child(2) { top: 7px; } /* Adjusted spacing */
+        .hamburger-icon span:nth-child(3) { top: 14px; } /* Adjusted spacing */
 
         /* Hamburger to 'X' animation */
         #fab-container.open .hamburger-icon span:nth-child(1) {
-            top: 9px;
+            top: 7px;
             transform: rotate(135deg);
         }
 
         #fab-container.open .hamburger-icon span:nth-child(2) {
             opacity: 0;
-            left: -28px;
+            left: -24px;
         }
 
         #fab-container.open .hamburger-icon span:nth-child(3) {
-            top: 9px;
+            top: 7px;
             transform: rotate(-135deg);
         }
 
@@ -746,40 +755,49 @@
             const node = findNodeById(nodeId);
             if (!node) return;
 
-            if (textEl.textContent === node.placeholder) {
-                textEl.textContent = '';
-            }
-
-            textEl.setAttribute('contenteditable', 'true');
-            
-            // Focus the element immediately to trigger the keyboard.
-            // This must happen within the same event handler as the user tap.
-            textEl.focus();
-            document.execCommand('selectAll', false, null);
-
-            // Now, scroll the newly focused element into view.
-            nodeEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-            
-            function onBlur() {
-                textEl.setAttribute('contenteditable', 'false');
-                if (node) {
-                    node.text = textEl.textContent.trim() || node.placeholder;
+            // This function will be called AFTER the scroll to focus and enable editing
+            const focusAndEdit = () => {
+                if (textEl.textContent === node.placeholder) {
+                    textEl.textContent = '';
                 }
-                textEl.removeEventListener('blur', onBlur);
-                textEl.removeEventListener('keydown', onKeydown);
-                state.editingNodeId = null;
-                updateAndRender();
-            }
-            
-            function onKeydown(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    textEl.blur();
+                textEl.setAttribute('contenteditable', 'true');
+                textEl.focus();
+                document.execCommand('selectAll', false, null);
+
+                function onBlur() {
+                    textEl.setAttribute('contenteditable', 'false');
+                    if (node) {
+                        node.text = textEl.textContent.trim() || node.placeholder;
+                    }
+                    textEl.removeEventListener('blur', onBlur);
+                    textEl.removeEventListener('keydown', onKeydown);
+                    state.editingNodeId = null;
+                    updateAndRender();
                 }
-            }
+
+                function onKeydown(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        textEl.blur();
+                    }
+                }
+
+                textEl.addEventListener('blur', onBlur);
+                textEl.addEventListener('keydown', onKeydown);
+            };
             
-            textEl.addEventListener('blur', onBlur);
-            textEl.addEventListener('keydown', onKeydown);
+            // Scroll the node to the center of the view first for a reliable focus experience.
+            const targetX = node.x - (viewport.clientWidth / 2);
+            const targetY = node.y - (viewport.clientHeight / 2);
+
+            viewport.scrollTo({
+                top: targetY,
+                left: targetX,
+                behavior: 'smooth'
+            });
+
+            // Wait for the smooth scroll to finish before focusing to prevent layout jumps.
+            setTimeout(focusAndEdit, 400); 
         }
 
         function openNoteEditor(nodeId) {
