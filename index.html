@@ -181,23 +181,49 @@
         }
 
         #note-editor {
+            position: relative;
+            width: 90%;
+            max-width: 600px;
             height: 70%;
+            padding-top: 20px; /* Space for hanging buttons */
         }
 
         .note-header {
             padding: 15px;
             font-size: 18px;
-            font-weight: bold;
             border-bottom: 1px solid #ddd;
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            gap: 10px;
         }
         
-        .note-header-controls {
+        #note-title {
+            font-weight: 700;
+        }
+        
+        .note-modal-btn {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: none;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
             display: flex;
             align-items: center;
-            gap: 15px;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 8px var(--shadow-medium);
+            top: -16px;
+        }
+        
+        #note-confirm-btn {
+            left: -10px;
+        }
+
+        #note-cancel-btn {
+            right: -10px;
         }
 
         .note-header-btn {
@@ -205,13 +231,9 @@
             border: none;
             cursor: pointer;
             padding: 0;
+            color: #555;
         }
         
-        .note-header-close {
-            font-size: 24px;
-            color: #888;
-        }
-
         .note-content {
             flex-grow: 1;
             padding: 15px;
@@ -415,14 +437,13 @@
     <!-- Note Editor Modal -->
     <div id="note-editor-overlay" class="modal-overlay">
         <div id="note-editor" class="modal-box">
+            <button id="note-confirm-btn" class="note-modal-btn" title="Confirm Note">&#x2713;</button>
+            <button id="note-cancel-btn" class="note-modal-btn" title="Cancel Note">&times;</button>
             <div class="note-header">
+                <button id="add-image-btn" class="note-header-btn" title="Add Image">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                </button>
                 <span id="note-title">Edit Note</span>
-                <div class="note-header-controls">
-                    <button id="add-image-btn" class="note-header-btn" title="Add Image">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                    </button>
-                    <span class="note-header-close">&times;</span>
-                </div>
             </div>
             <div id="note-content" class="note-content" contenteditable="true"></div>
         </div>
@@ -450,13 +471,13 @@
     <!-- Instruction Modal -->
     <div id="instruction-overlay" class="modal-overlay">
         <div id="instruction-modal" class="modal-box">
-            <h3>Welcome to Mobile Mindmap!</h3>
+            <h3>Welcome to Mulberry Mindmap!</h3>
             <ul>
-                <li><strong>Start with an idea:</strong> Double-tap the main box to type.</li>
-                <li><strong>Add or remove ideas:</strong> Tap the <strong>+</strong> button to add a new idea, or <strong>&times;</strong> to remove one.</li>
-                <li><strong>Add notes & images:</strong> Tap the <strong>Note icon</strong> to open the editor. Use the <strong>Image icon</strong> to add a picture from your library.</li>
-                <li><strong>Pan & Zoom:</strong> Use one finger to scroll and two fingers to pinch-zoom.</li>
-                <li><strong>Save your work:</strong> Your work is saved automatically! Use the menu to <strong>Export</strong> your map to a file.</li>
+                <li><strong>Start with an idea:</strong> Double-tap the main box to type your main topic.</li>
+                <li><strong>Add or remove ideas:</strong> Tap the <strong>+</strong> button to add a new idea, or <strong>&times;</strong> to remove one. You can add up to five branches and go three levels deep.</li>
+                <li><strong>Add notes & images:</strong> Tap the <strong>Note icon</strong> to open the editor. Use the <strong>Image icon</strong> inside the note to add a picture from your library.</li>
+                <li><strong>Pan & Zoom:</strong> Use one finger to scroll around your map and two fingers to pinch-zoom.</li>
+                <li><strong>Save & Export:</strong> Your work is saved automatically. Use the menu button (&#9776;) to <strong>Export</strong> your map to a file or <strong>Print</strong> it to a PDF.</li>
             </ul>
             <button id="instruction-close-btn" class="modal-button">Let's Go!</button>
         </div>
@@ -473,6 +494,9 @@
         const viewport = document.getElementById('viewport');
         const canvas = document.getElementById('mindmap-canvas');
         const noteEditorOverlay = document.getElementById('note-editor-overlay');
+        const noteTitle = document.getElementById('note-title');
+        const noteConfirmBtn = document.getElementById('note-confirm-btn');
+        const noteCancelBtn = document.getElementById('note-cancel-btn');
         const fileInput = document.getElementById('file-input');
         const imageInput = document.getElementById('image-input');
         const addImageBtn = document.getElementById('add-image-btn');
@@ -960,23 +984,38 @@
             state.editingNodeId = nodeId;
             const node = findNodeById(nodeId);
             if (!node) return;
-            document.getElementById('note-title').textContent = `Note for: ${node.text}`;
+            
+            const branchColor = node.branchColor || 'var(--core-node-color)';
+            noteTitle.textContent = `Note for: ${node.text}`;
+            noteTitle.style.color = branchColor;
+            noteConfirmBtn.style.backgroundColor = branchColor;
+            noteCancelBtn.style.backgroundColor = branchColor;
+
             const noteContent = document.getElementById('note-content');
             noteContent.innerHTML = node.note;
             noteEditorOverlay.style.display = 'flex';
             noteContent.focus();
         }
 
-        function closeNoteEditor() {
-            const node = findNodeById(state.editingNodeId);
-            if (node) {
-                node.note = document.getElementById('note-content').innerHTML;
-            }
+        function hideNoteEditor() {
             noteEditorOverlay.style.display = 'none';
             state.editingNodeId = null;
             state.savedSelection = null;
             updateAndRender();
         }
+
+        function confirmNote() {
+            const node = findNodeById(state.editingNodeId);
+            if (node) {
+                node.note = document.getElementById('note-content').innerHTML;
+            }
+            hideNoteEditor();
+        }
+        
+        function cancelNote() {
+            hideNoteEditor();
+        }
+
 
         // --- 9. PRINT FUNCTION (UPDATED & SECURE) ---
         async function printMindmap() {
@@ -1145,9 +1184,11 @@
             }
         });
         
-        noteEditorOverlay.querySelector('.note-header-close').addEventListener('click', closeNoteEditor);
+        noteConfirmBtn.addEventListener('click', confirmNote);
+        noteCancelBtn.addEventListener('click', cancelNote);
+
         noteEditorOverlay.addEventListener('click', (e) => {
-            if (e.target === noteEditorOverlay) closeNoteEditor();
+            if (e.target === noteEditorOverlay) cancelNote();
         });
 
         document.getElementById('note-content').addEventListener('focusout', () => {
