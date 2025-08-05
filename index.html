@@ -194,9 +194,21 @@
             align-items: center;
         }
         
+        .note-header-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .note-header-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+        }
+        
         .note-header-close {
             font-size: 24px;
-            cursor: pointer;
             color: #888;
         }
 
@@ -208,6 +220,13 @@
             font-size: 16px;
             line-height: 1.6;
             outline: none;
+        }
+
+        .note-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 10px 0;
         }
 
         #alert-box, #startup-choice-modal {
@@ -398,7 +417,12 @@
         <div id="note-editor" class="modal-box">
             <div class="note-header">
                 <span id="note-title">Edit Note</span>
-                <span class="note-header-close">&times;</span>
+                <div class="note-header-controls">
+                    <button id="add-image-btn" class="note-header-btn" title="Add Image">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                    </button>
+                    <span class="note-header-close">&times;</span>
+                </div>
             </div>
             <div id="note-content" class="note-content" contenteditable="true"></div>
         </div>
@@ -430,7 +454,7 @@
             <ul>
                 <li><strong>Start with an idea:</strong> Double-tap the main box to type.</li>
                 <li><strong>Add or remove ideas:</strong> Tap the <strong>+</strong> button to add a new idea, or <strong>&times;</strong> to remove one.</li>
-                <li><strong>Add notes:</strong> Tap the <strong>Note icon</strong> on any box to open the editor.</li>
+                <li><strong>Add notes & images:</strong> Tap the <strong>Note icon</strong> to open the editor. Use the <strong>Image icon</strong> to add a picture from your library.</li>
                 <li><strong>Pan & Zoom:</strong> Use one finger to scroll and two fingers to pinch-zoom.</li>
                 <li><strong>Save your work:</strong> Your work is saved automatically! Use the menu to <strong>Export</strong> your map to a file.</li>
             </ul>
@@ -438,8 +462,9 @@
         </div>
     </div>
 
-    <!-- Hidden file input -->
+    <!-- Hidden file inputs -->
     <input type="file" id="file-input" style="display: none;" accept=".json,application/json">
+    <input type="file" id="image-input" style="display: none;" accept="image/*">
 
     <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -449,6 +474,8 @@
         const canvas = document.getElementById('mindmap-canvas');
         const noteEditorOverlay = document.getElementById('note-editor-overlay');
         const fileInput = document.getElementById('file-input');
+        const imageInput = document.getElementById('image-input');
+        const addImageBtn = document.getElementById('add-image-btn');
         const fabContainer = document.getElementById('fab-container');
         const fabMainBtn = document.getElementById('fab-main-btn');
         const exportBtn = document.getElementById('export-btn');
@@ -501,7 +528,8 @@
                 { fontFamily: 'Silkscreen', fontSizes: ['16px', '14px', '13px', '12px'] },
                 { fontFamily: 'Roboto', fontSizes: ['18px', '16px', '15px', '14px'] }
             ],
-            animationDuration: '0.4s'
+            animationDuration: '0.4s',
+            imageResizeDimension: 500 // Max width for inserted images
         };
 
         let state = {
@@ -509,6 +537,7 @@
             nextId: 0,
             editingNodeId: null,
             placeholderIndex: 0,
+            savedSelection: null // To store cursor position in note editor
         };
         
         // --- 3. UTILITY & UI FUNCTIONS ---
@@ -872,14 +901,70 @@
             textEl.addEventListener('blur', onBlur);
             textEl.addEventListener('keydown', onKeydown);
         }
+        
+        function resizeImage(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        const maxDim = config.imageResizeDimension;
+                        let { width, height } = img;
+                        if (width > height) {
+                            if (width > maxDim) { height *= maxDim / width; width = maxDim; }
+                        } else {
+                            if (height > maxDim) { width *= maxDim / height; height = maxDim; }
+                        }
+                        canvas.width = width;
+                        canvas.height = height;
+                        ctx.drawImage(img, 0, 0, width, height);
+                        resolve(canvas.toDataURL('image/png'));
+                    };
+                    img.onerror = reject;
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function insertImageIntoNote(dataURL) {
+            const noteContent = document.getElementById('note-content');
+            noteContent.focus();
+
+            // Restore saved selection if it exists
+            const selection = window.getSelection();
+            if (state.savedSelection) {
+                selection.removeAllRanges();
+                selection.addRange(state.savedSelection);
+            }
+
+            const range = selection.getRangeAt(0);
+            range.deleteContents();
+
+            const img = document.createElement('img');
+            img.src = dataURL;
+
+            range.insertNode(img);
+
+            // Move cursor after the image
+            range.setStartAfter(img);
+            range.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
 
         function openNoteEditor(nodeId) {
             state.editingNodeId = nodeId;
             const node = findNodeById(nodeId);
             if (!node) return;
             document.getElementById('note-title').textContent = `Note for: ${node.text}`;
-            document.getElementById('note-content').innerHTML = node.note;
+            const noteContent = document.getElementById('note-content');
+            noteContent.innerHTML = node.note;
             noteEditorOverlay.style.display = 'flex';
+            noteContent.focus();
         }
 
         function closeNoteEditor() {
@@ -889,6 +974,7 @@
             }
             noteEditorOverlay.style.display = 'none';
             state.editingNodeId = null;
+            state.savedSelection = null;
             updateAndRender();
         }
 
@@ -1063,6 +1149,33 @@
         noteEditorOverlay.addEventListener('click', (e) => {
             if (e.target === noteEditorOverlay) closeNoteEditor();
         });
+
+        document.getElementById('note-content').addEventListener('focusout', () => {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                state.savedSelection = selection.getRangeAt(0);
+            }
+        });
+
+        addImageBtn.addEventListener('click', () => {
+            document.getElementById('note-content').focus();
+            imageInput.click();
+        });
+
+        imageInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                try {
+                    const resizedDataUrl = await resizeImage(file);
+                    insertImageIntoNote(resizedDataUrl);
+                } catch (error) {
+                    console.error("Image processing failed:", error);
+                    showMessage("Could not process the selected image.");
+                }
+            }
+            imageInput.value = ''; // Reset for next use
+        });
+
         alertCloseBtn.addEventListener('click', hideMessage);
         alertOverlay.addEventListener('click', (e) => {
             if (e.target === alertOverlay) hideMessage();
