@@ -1,0 +1,1801 @@
+<!DOCTYPE html>
+<!--
+  Interactive Mindmap Creator
+  Version: 25.2 (Robust Clear & New)
+  Description: Changed 'Clear & New' to clear local storage and reload the page for a reliable reset.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive Mindmap Creator (v25.2 Robust Reset)</title>
+  <style>
+    /* --- Basic page setup --- */
+    body { margin: 0; font-family: sans-serif; overflow: hidden; }
+
+    /* --- Main container for the mind map visualization --- */
+    #mindmap-container { 
+      position: relative; 
+      width: 100vw; 
+      height: 100vh; 
+      background: #ffffff; 
+      transition: transform 0.75s ease-in-out;
+      z-index: 1;
+    }
+
+    /* --- SVG layer for drawing the connecting lines between nodes --- */
+    svg { 
+      position: absolute; 
+      top: 0; 
+      left: 0; 
+      width: 100%; 
+      height: 100%; 
+      z-index: 0; 
+      pointer-events: none;
+    }
+
+    /* --- Node Styling --- */
+    .node-group {
+      position: absolute;
+      background: #fff;
+      border-radius: 0; /* Removed rounded corners */
+      border-style: solid;
+      transition: background-color 0.3s, color 0.3s, border-color 0.3s, padding 0.1s;
+      overflow: visible; 
+      white-space: nowrap;
+      z-index: 2; /* Nodes are above the SVG lines */
+      cursor: grab;
+    }
+
+    /* --- Hyperlink Node Styling --- */
+    .node-group.is-link .box {
+        cursor: pointer; /* Pointer cursor only on the text box */
+        text-decoration: underline;
+        text-decoration-thickness: 2px;
+    }
+
+
+    .depth-0 { 
+      border-width: 6px;
+      border-style: double;
+      padding: 6px 14px 7px;
+    }
+    .depth-0.confirmed {
+      border-style: solid;
+      border-width: 4px;
+      /* Removed inset white border */
+    }
+    .depth-1 { border-width: 4px; padding: 6px 15px 7px 10px; }
+    .depth-2 { border-width: 2px; padding: 6px 15px 7px 10px; }
+    .depth-3 { border-width: 1px; padding: 5px 15px 7px 10px; }
+
+    .box {
+      border: none;
+      background: transparent;
+      text-align: center;
+      outline: none;
+      white-space: nowrap;
+      padding: 0;
+    }
+    
+    .box.core { font-weight: bold; }
+    
+    /* --- Action Button Styling --- */
+    .action-btn {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      color: white;
+      text-align: center;
+      line-height: 22px; 
+      font-weight: bold;
+      cursor: pointer;
+      font-family: 'Helvetica', 'Arial', sans-serif;
+      border: 2px solid #000;
+      opacity: 0;
+      transition: opacity 0.2s;
+      user-select: none;
+      z-index: 5; 
+    }
+
+    .close-btn { top: -14px; right: -14px; font-size: 13px; }
+    .add-btn { bottom: -14px; right: -14px; line-height: 21px; font-size: 18px; }
+
+    .node-group:hover .action-btn { opacity: 1; }
+
+    /* --- Note Button Styling --- */
+    .note-btn {
+      position: absolute;
+      top: -14px;
+      left: -14px;
+      width: 28px;
+      height: 28px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+    }
+    .note-btn svg { 
+      width: 24px; 
+      height: 24px; 
+      transition: all 0.2s;
+    }
+    .node-group:hover .note-btn { opacity: 1; }
+
+    /* --- Note Popup Styling --- */
+    .note-popup {
+      position: fixed;
+      width: 350px;
+      height: 350px; /* Fixed height */
+      border-width: 2px;
+      border-style: solid;
+      background-color: #ffffff;
+      border-radius: 4px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 11;
+      display: flex;
+      flex-direction: column;
+    }
+    .note-content-wrapper {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 8px;
+        overflow: hidden; /* Important for flexbox scrolling */
+    }
+    .note-editable {
+        flex-grow: 1;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 8px;
+        font-size: 16px;
+        line-height: 1.5;
+        outline: none;
+        overflow-y: auto; /* Enables scrolling */
+        -webkit-user-modify: read-write-plaintext-only;
+    }
+    .note-editable img {
+        display: block;
+        max-width: 100%;
+        margin: 10px 0;
+        border-radius: 4px;
+    }
+    .note-editable a {
+        cursor: pointer;
+    }
+    .note-toolbar {
+        padding: 8px 8px 0 8px;
+        flex-shrink: 0;
+    }
+    
+    .note-popup-btn {
+      position: absolute;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: none;
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #000;
+    }
+    .note-cancel-btn { top: -14px; right: -14px; font-size: 14px; }
+    .note-confirm-btn { bottom: -14px; right: -14px; }
+
+    /* --- Modal Overlay Styling --- */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      background-color: rgba(0,0,0,0.1);
+    }
+
+    /* --- Custom Modal Styling --- */
+    #custom-modal, #startup-modal {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        z-index: 201;
+        min-width: 320px;
+        max-width: 450px;
+        text-align: center;
+        border: 1px solid #ddd;
+    }
+    #modal-title, #startup-modal h3 {
+        margin-top: 0;
+        font-size: 20px;
+        font-weight: bold;
+        color: #333;
+    }
+    #modal-message, #startup-modal p {
+        font-size: 16px;
+        color: #555;
+        margin-top: 10px;
+        line-height: 1.5;
+    }
+    #modal-buttons, #startup-buttons {
+        margin-top: 25px;
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+    .modal-btn {
+        padding: 8px 16px;
+        border: 2px solid;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: bold;
+        transition: background-color 0.2s, color 0.2s, transform 0.1s;
+        min-width: 100px;
+    }
+    .modal-btn:active {
+        transform: translateY(1px);
+    }
+    .modal-btn-primary {
+        background-color: #007bff;
+        color: white;
+        border-color: #007bff;
+    }
+    .modal-btn-primary:hover {
+        background-color: #0056b3;
+    }
+    .modal-btn-secondary {
+        background-color: #f0f0f0;
+        color: #333;
+        border-color: #ccc;
+    }
+    .modal-btn-secondary:hover {
+        background-color: #e0e0e0;
+    }
+     #startup-continue-btn {
+        background-color: #2E7D32;
+        color: white;
+        border-color: #2E7D32;
+    }
+    #startup-continue-btn:hover {
+        background-color: #1B5E20;
+    }
+
+    /* --- Instruction Modal Styling --- */
+    #instruction-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 300; /* Highest z-index */
+      background-color: rgba(0,0,0,0.4);
+      display: none; /* Initially hidden */
+      align-items: center;
+      justify-content: center;
+    }
+    #instruction-modal {
+      background: white;
+      padding: 20px 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+      z-index: 301;
+      width: 90%;
+      max-width: 500px;
+      position: relative;
+      border: 2px solid #333;
+    }
+    #instruction-modal h3 {
+      margin-top: 0;
+      font-size: 22px;
+      font-weight: bold;
+      color: #1d3557;
+      text-align: center;
+    }
+    #instruction-modal ul {
+      list-style-type: none;
+      padding: 0;
+      margin-top: 20px;
+    }
+    #instruction-modal li {
+      font-size: 18px;
+      color: #333;
+      line-height: 1.4;
+      margin-bottom: 12px;
+    }
+    #instruction-modal li strong {
+      color: #4B0082; /* Mulberry Purple */
+    }
+    #instruction-modal-close-btn {
+      position: absolute;
+      top: -15px;
+      right: -15px;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: 2px solid #1d3557;
+      background-color: #1d3557;
+      color: #fff;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+
+
+    /* --- Control Buttons Container --- */
+    #top-controls-container {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      transform: translateX(0);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 100;
+    }
+
+    /* --- Controls div within the container (for buttons) --- */
+    #controls {
+      display: flex;
+      gap: 10px;
+    }
+
+    #controls button, #final-save-btn {
+      padding: 6px 12px;
+      border: 2px solid #000;
+      border-radius: 8px;
+      background-color: #f0f0f0;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      transition: background-color 0.2s, color 0.2s, transform 0.1s;
+      box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 120px;
+      box-sizing: border-box;
+    }
+
+    #controls button:hover {
+      background-color: #e0e0e0;
+      transform: translateY(-2px);
+    }
+
+    #controls button:active {
+      transform: translateY(0);
+      box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+    }
+    
+    #print-mindmap-btn {
+        display: none; /* Initially hidden */
+    }
+
+    /* --- New Title Area Styling --- */
+    #app-title {
+      background-color: #4B0082;
+      color: white;
+      font-family: 'Roboto Serif', serif;
+      font-size: 17px;
+      padding: 8px 15px;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      white-space: nowrap;
+    }
+    
+    /* --- New Save UI Styling --- */
+    #save-ui-container {
+        position: fixed;
+        top: 56px; /* Position below the main buttons */
+        display: none; /* Initially hidden */
+        align-items: center;
+        gap: 10px;
+        z-index: 100;
+        background-color: #fff;
+        padding: 10px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    #author-name-input {
+        height: 36px;
+        border: 2px solid #000;
+        border-radius: 8px;
+        padding: 6px 12px;
+        font-size: 14px;
+        font-weight: bold;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+        width: 263px; /* Width of two buttons + gap */
+        box-sizing: border-box;
+    }
+    #final-save-btn {
+        background-color: #0091ea; /* Blue */
+        color: white;
+    }
+    #final-save-btn:hover {
+        background-color: #007bbf; /* Darker Blue */
+        transform: translateY(-2px);
+    }
+    #final-save-btn:active {
+        transform: translateY(0);
+        box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+    }
+
+  </style>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+  <!-- Instruction Modal on page load -->
+  <div id="instruction-modal-overlay">
+    <div id="instruction-modal">
+      <button id="instruction-modal-close-btn">&#x2715;</button>
+      <h3>Welcome to Mulberry MindMap!</h3>
+      <ul>
+        <li><strong>Start with a big idea:</strong> Double-click the box in the middle to type your main topic. Press <strong>Enter</strong> when you’re done.</li>
+        <li><strong>Add or remove ideas:</strong> Click the <strong>+</strong> button to add a new idea. You can add up to <strong>five</strong> branches from each box and go <strong>three</strong> levels deep. Clcik the <strong>x</strong> to remove any you don't need.</li>
+        <li><strong>Arrange your map:</strong> Hold and drag on any box to move it around and make your map easier to read.</li>
+        <li><strong>Add notes &amp; pictures:</strong> Click the <strong>Note icon</strong> on any box to open a note. To add a picture, find one online, right-click and 'Copy Image', then paste it straight into the note.</li>
+        <li><strong>Save your work:</strong> Your work is saved automatically. Use the <strong>Save Mindmap</strong> button to download a file. You must type your name to save it.</li>
+        <li><strong>Print your map:</strong> After saving, use the 'Print Mindmap' button to create a PDF with your map and all your notes.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div id="mindmap-container">
+    <svg id="mindmap-svg"></svg>
+    <!-- Nodes will be appended to the container div -->
+  </div>
+
+  <div id="top-controls-container">
+    <div id="app-title">Mulberry MindMap</div>
+    <div id="controls">
+      <button id="save-mindmap-btn">Save Mindmap</button>
+      <button id="load-mindmap-btn">Load Mindmap</button>
+      <button id="clear-new-btn">Clear & New</button>
+      <button id="print-mindmap-btn">Print Mindmap</button>
+    </div>
+  </div>
+  
+  <!-- New Save UI Elements -->
+  <div id="save-ui-container">
+      <input type="text" id="author-name-input" placeholder="First Name and Surname">
+      <button id="final-save-btn">Save</button>
+  </div>
+  
+  <!-- Hidden file inputs -->
+  <input type="file" id="json-file-input" style="display: none;" accept=".json">
+  <input type="file" id="image-file-input" style="display: none;" accept="image/*">
+
+  <!-- Custom Modal for alerts and confirmations -->
+  <div id="custom-modal-overlay" class="modal-overlay" style="display: none; z-index: 200;">
+    <div id="custom-modal">
+      <h3 id="modal-title">Modal Title</h3>
+      <p id="modal-message">Modal message goes here.</p>
+      <div id="modal-buttons">
+        <!-- Buttons are injected by JavaScript -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Startup Choice Modal -->
+  <div id="startup-modal-overlay" class="modal-overlay" style="display: none; z-index: 200;">
+    <div id="startup-modal">
+        <h3>Welcome Back!</h3>
+        <p>Continue where you left off, or start a new mindmap?</p>
+        <div id="startup-buttons">
+            <button id="startup-new-btn" class="modal-btn modal-btn-secondary">Start New</button>
+            <button id="startup-continue-btn" class="modal-btn modal-btn-primary">Continue</button>
+        </div>
+    </div>
+  </div>
+
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+      // --- 1. CONFIGURATION ---
+      const STORAGE_KEY = 'desktopMindmapState';
+      const config = {
+        radius: 150, // Increased from 120 to prevent initial node overlap
+        jitterDegrees: 20, 
+        maxDepth: 3, 
+        margin: 50,
+        branchColors: ['#e040fb', '#00c853', '#0091ea', '#ff9100', '#ff3300'],
+        coreNodeColor: '#1d3557', 
+        chargeStrength: -167.5,
+        linkStrength: 1.5,
+        collisionPadding: 25, 
+        borderWidths: ['6px', '4px', '2px', '1px'],
+        initialBranches: [3, 3, 2, 2], 
+        maxBranches: 5,
+        noteWidth: 350,
+        noteHeight: 250, // This value is now used by the popup height style
+        noteOffset: 30,
+        panDuration: 750,
+        pullStrengthMultiplier: 0.15,
+        imageResizeDimension: 300, // Max width/height for pasted images
+        placeholderTexts: [
+            "What next?", 
+            "Why this…?", 
+            "More ideas…", 
+            "New point?", 
+            "How come…?", 
+            "Links to…", 
+            "Dig deeper…", 
+            "What if...?",
+            "Explain more…", 
+            "So what?"
+        ],
+        branchStyles: [
+            { fontFamily: 'sans-serif', fontSizes: ['22px', '18px', '16px', '14px'] }, // Style for Core Node
+            { fontFamily: 'Roboto', fontSizes: ['22px', '18px', '16px', '14px'] }, // Branch 1 (Purple)
+            { fontFamily: 'Lacquer', fontSizes: ['22px', '18px', '16px', '14px'] }, // Branch 2 (Green) - Size updated
+            { fontFamily: 'Roboto Serif', fontSizes: ['20px', '16px', '14px', '13px'] }, // Branch 3 (Blue)
+            { fontFamily: 'Roboto Condensed', fontSizes: ['22px', '18px', '16px', '15px'] }, // Branch 4 (Orange)
+            { fontFamily: 'Silkscreen', fontSizes: ['20px', '16px', '14px', '13px'] }  // Branch 5 (Red)
+        ],
+      };
+
+      // --- SVG Icons ---
+      const noteIconOutline = `<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>`;
+      const noteIconFilled = `<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"></path></svg>`;
+
+      // --- 2. STATE AND D3 SETUP ---
+      const container = d3.select('#mindmap-container');
+      const svg = d3.select('#mindmap-svg');
+      let nodes = [], links = [], nextId = 0;
+      let linkSelection, nodeSelection;
+      let loadedFonts = new Set();
+      let currentPan = { x: 0, y: 0 };
+      let authorName = ''; // To store the user's name for save/print
+      let activeNoteContext = null; // Stores context (editable div, cursor range) for image insertion
+      let placeholderIndex = 0; // To cycle through placeholder texts
+
+      // --- 3. D3 FORCE SIMULATION ---
+      const simulation = d3.forceSimulation()
+        .force('link', d3.forceLink().id(d => d.id).distance(config.radius).strength(config.linkStrength))
+        .force('charge', d3.forceManyBody().strength(config.chargeStrength))
+        .force('center', d3.forceCenter(window.innerWidth / 2, window.innerHeight / 2))
+        .force('x_pull', d3.forceX()
+            .x(d => {
+                const width = window.innerWidth;
+                return d.x < width / 2 ? config.margin : width - config.margin;
+            })
+            .strength(d => {
+                const width = window.innerWidth;
+                const distanceToCenter = Math.abs(d.x - width / 2);
+                return Math.min(0.2, distanceToCenter / (width / 2) * config.pullStrengthMultiplier);
+            })
+        )
+        .force('collision', d3.forceCollide().radius(d => (d.width / 2 || 50) + config.collisionPadding))
+        .on('tick', ticked);
+
+      // --- 4. MODAL DIALOG SYSTEM ---
+      const modalOverlay = document.getElementById('custom-modal-overlay');
+      const modalTitle = document.getElementById('modal-title');
+      const modalMessage = document.getElementById('modal-message');
+      const modalButtons = document.getElementById('modal-buttons');
+
+      function hideModal() {
+          modalOverlay.style.display = 'none';
+      }
+
+      function showModal(title, message, buttons = [{ text: 'OK', class: 'primary', action: hideModal }]) {
+          modalTitle.textContent = title;
+          modalMessage.innerHTML = message; // Use innerHTML to allow line breaks
+          modalButtons.innerHTML = ''; // Clear existing buttons
+
+          buttons.forEach(btnInfo => {
+              const button = document.createElement('button');
+              button.textContent = btnInfo.text;
+              button.className = `modal-btn modal-btn-${btnInfo.class || 'secondary'}`;
+              button.onclick = () => {
+                  hideModal(); // Always hide modal on button click
+                  if (btnInfo.action) {
+                      btnInfo.action();
+                  }
+              };
+              modalButtons.appendChild(button);
+          });
+
+          modalOverlay.style.display = 'block';
+      }
+
+
+      // --- 5. HELPER FUNCTIONS ---
+      function adjustWidth(input) {
+        if (!(input instanceof Element)) return;
+        const style = window.getComputedStyle(input);
+        const font = style.font;
+        const text = input.value || input.placeholder || "Enter Keyword";
+        const canvas = adjustWidth.canvas || (adjustWidth.canvas = document.createElement('canvas'));
+        const ctx = canvas.getContext('2d');
+        ctx.font = font;
+        const metrics = ctx.measureText(text);
+        input.style.width = Math.ceil(metrics.width) + 'px';
+      }
+
+      function lightenColor(hex, percent) {
+        const num = parseInt(hex.replace('#', ''), 16);
+        const r = num >> 16, g = (num >> 8) & 0xFF, b = num & 0xFF;
+        const newR = Math.round(r + (255 - r) * (percent / 100));
+        const newG = Math.round(g + (255 - g) * (percent / 100));
+        const newB = Math.round(b + (255 - b) * (percent / 100));
+        return '#' + ((1 << 24) + (newR << 16) + (newG << 8) + newB).toString(16).slice(1);
+      }
+      
+      function loadFont(fontName) {
+        if (!fontName || loadedFonts.has(fontName) || fontName === 'sans-serif') return Promise.resolve();
+        const weight = fontName.includes('Roboto') ? ':wght@600' : '';
+        const link = document.createElement('link');
+        link.href = `https://fonts.googleapis.com/css2?family=${fontName.replace(/ /g, '+')}${weight}&display=swap`;
+        link.rel = 'stylesheet';
+        document.head.appendChild(link);
+        loadedFonts.add(fontName);
+        return document.fonts.load(`16px ${fontName}`).catch(err => console.error(err));
+      }
+
+      /**
+       * Resizes an image blob to a maximum dimension, returning a Data URL.
+       * @param {Blob} blob The image file blob.
+       * @returns {Promise<string>} A promise that resolves with the resized image as a Data URL.
+       */
+      function resizeImage(blob) {
+          return new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                  const img = new Image();
+                  img.onload = () => {
+                      const canvas = document.createElement('canvas');
+                      const ctx = canvas.getContext('2d');
+                      const maxDim = config.imageResizeDimension;
+                      let { width, height } = img;
+                      if (width > height) {
+                          if (width > maxDim) { height *= maxDim / width; width = maxDim; }
+                      } else {
+                          if (height > maxDim) { width *= maxDim / height; height = maxDim; }
+                      }
+                      canvas.width = width;
+                      canvas.height = height;
+                      ctx.drawImage(img, 0, 0, width, height);
+                      resolve(canvas.toDataURL('image/png'));
+                  };
+                  img.onerror = reject;
+                  img.src = e.target.result;
+              };
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+          });
+      }
+
+      /**
+       * Inserts an image into a contenteditable div using modern Range/Selection APIs.
+       * @param {string} dataURL The Data URL of the image to insert.
+       * @param {HTMLElement} editableDiv The contenteditable div element.
+       * @param {Range} range The saved cursor range.
+       */
+      function insertImageAtCursor(dataURL, editableDiv, range) {
+          if (!editableDiv) return;
+          editableDiv.focus();
+
+          const selection = window.getSelection();
+          // If we have a valid range from before, restore it.
+          if (range && selection) {
+              selection.removeAllRanges();
+              selection.addRange(range);
+          } else if (selection && selection.rangeCount > 0) {
+              // Fallback: if no range was saved, get the current one.
+              range = selection.getRangeAt(0);
+          }
+
+          if (!range) return; // Can't proceed without a range
+
+          // Create the image and surrounding line breaks
+          const img = document.createElement('img');
+          img.src = dataURL;
+          const br1 = document.createElement('br');
+          const br2 = document.createElement('br');
+
+          // Clear any existing selection and insert the nodes
+          range.deleteContents();
+          range.insertNode(br2);
+          range.insertNode(img);
+          range.insertNode(br1);
+
+          // Move the cursor to after the inserted content
+          range.setStartAfter(br2);
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+      }
+      
+      /**
+       * Processes an image blob (from file input or paste), resizes it, and inserts it.
+       * @param {Blob} blob The image blob to process.
+       */
+      async function processImageBlob(blob) {
+          if (!activeNoteContext || !activeNoteContext.editableDiv) {
+              console.error("No active note context to process image for.");
+              return;
+          }
+          try {
+              const resizedDataUrl = await resizeImage(blob);
+              insertImageAtCursor(resizedDataUrl, activeNoteContext.editableDiv, activeNoteContext.savedRange);
+              activeNoteContext.savedRange = null; // Clear range after use
+          } catch (error) {
+              console.error("Image processing failed:", error);
+              showModal('Image Error', 'Could not process the pasted image.');
+          }
+      }
+
+      /**
+       * Finds URLs in an HTML string and wraps them in anchor tags.
+       * It intelligently avoids linkifying URLs that are already inside <a> tags.
+       * @param {string} htmlContent The HTML content from the note.
+       * @returns {string} The HTML content with URLs converted to clickable links.
+       */
+      function linkifyNoteContent(htmlContent) {
+        if (!htmlContent) return '';
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+
+        // A robust regex for URLs, including www.
+        const urlRegex = /((?:https?:\/\/|www\.)[^\s<>"'()]+)/g;
+
+        // Recursive function to traverse DOM nodes
+        function findAndReplace(node) {
+            // We only care about text nodes that are not inside an <a> tag.
+            if (node.nodeType === 3 && node.parentNode.nodeName !== 'A') {
+                const text = node.nodeValue;
+                // Use the regex to find URLs in the text content
+                const newHtml = text.replace(urlRegex, (url) => {
+                    let href = url;
+                    // Add http:// if the URL starts with www. for it to be a valid link
+                    if (href.startsWith('www.')) {
+                        href = 'http://' + href;
+                    }
+                    return `<a href="${href}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+                });
+
+                // If we made a replacement, we need to update the DOM
+                if (newHtml !== text) {
+                    const replacementFragment = document.createDocumentFragment();
+                    const wrapper = document.createElement('div');
+                    wrapper.innerHTML = newHtml;
+                    while (wrapper.firstChild) {
+                        replacementFragment.appendChild(wrapper.firstChild);
+                    }
+                    node.parentNode.replaceChild(replacementFragment, node);
+                }
+            } else if (node.nodeType === 1) { // If it's an element, recurse through its children
+                // Iterate over a static copy of child nodes, as the live list might change
+                Array.from(node.childNodes).forEach(findAndReplace);
+            }
+        }
+
+        findAndReplace(tempDiv);
+        return tempDiv.innerHTML;
+      }
+
+      // --- 6. CORE LOGIC FUNCTIONS ---
+      function styleConfirmedNode(d) {
+          const group = d3.select(d.dom);
+          const input = d.input;
+          input.readOnly = true;
+          group.classed('confirmed', true);
+          
+          // Set background colors
+          if (!d.parent) {
+              group.style('background-color', lightenColor(config.coreNodeColor, 20));
+              input.style.color = '#fff';
+          } else {
+              let tint = d.depth === 1 ? 55 : d.depth === 2 ? 70 : 85;
+              group.style('background-color', lightenColor(d.branchColor, tint));
+              input.style.color = '#000';
+          }
+
+          // --- Hyperlink Logic ---
+          // A simple regex to check for something that looks like a URL.
+          const urlRegex = new RegExp('^(https?://)?'+ // protocol
+            '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|'+ // domain name
+            '((\\d{1,3}\\.){3}\\d{1,3}))'+ // OR ip (v4) address
+            '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*'+ // port and path
+            '(\\?[;&a-z\\d%_.~+=-]*)?'+ // query string
+            '(\\#[-a-z\\d_]*)?$','i'); // fragment locator
+          const isUrl = urlRegex.test(input.value);
+
+          group.classed('is-link', isUrl);
+          group.select('.box').style('text-decoration-color', d.branchColor || config.coreNodeColor);
+      }
+
+      function confirmNode(event, d) {
+        if (event.key && event.key !== 'Enter') return;
+        event.preventDefault();
+
+        const input = d.input;
+        const val = input.value.trim();
+        if (!val || val === "Your Big Idea" || config.placeholderTexts.includes(val)) return;
+        styleConfirmedNode(d);
+        simulation.alpha(1).restart();
+        if (d.depth >= config.maxDepth || d.childrenCount > 0) return;
+        
+        const numToCreate = config.initialBranches[d.depth] || 0;
+        let branches = [];
+
+        if (d.parent === null) {
+            for (let i = 0; i < numToCreate; i++) {
+                branches.push({ 
+                    angle: ((360 / numToCreate) * i) + (Math.random() * 2 - 1) * config.jitterDegrees, 
+                    color: config.branchColors[i % config.branchColors.length] 
+                });
+            }
+        } else {
+            const pa = Math.atan2(d.parent.y - d.y, d.x - d.parent.x) * 180 / Math.PI;
+            const spread = 60;
+            let angleOffsets = [];
+            if (numToCreate === 3) angleOffsets = [-spread, 0, spread];
+            if (numToCreate === 2) angleOffsets = [-spread / 2, spread / 2];
+            branches = angleOffsets.map(offset => ({
+                angle: pa + offset + (Math.random() * 2 - 1) * config.jitterDegrees,
+                color: d.branchColor
+            }));
+        }
+        branches.forEach(({ angle, color }) => createChildNode(d, angle, color));
+        d.childrenCount = branches.length;
+        update();
+      }
+      
+      function createChildNode(parentNode, angle, color) {
+          const rad = angle * Math.PI / 180;
+          const newId = ++nextId;
+          
+          let fontFamily;
+          let branchIndex;
+
+          if (parentNode.depth === 0) {
+              branchIndex = config.branchColors.indexOf(color) + 1;
+              if (branchIndex === 0) {
+                  branchIndex = (parentNode.childrenCount % config.branchColors.length) + 1;
+              }
+              const style = config.branchStyles[branchIndex % config.branchStyles.length];
+              fontFamily = style.fontFamily;
+              loadFont(fontFamily);
+          } else {
+              branchIndex = parentNode.branchIndex; 
+              fontFamily = parentNode.fontFamily;
+          }
+
+          const placeholder = config.placeholderTexts[placeholderIndex % config.placeholderTexts.length];
+          placeholderIndex++;
+
+          const childNode = {
+            id: newId, x: parentNode.x + config.radius * Math.cos(rad), y: parentNode.y - config.radius * Math.sin(rad),
+            parent: parentNode, childrenCount: 0, depth: parentNode.depth + 1, branchColor: color, 
+            note: '',
+            fontFamily: fontFamily,
+            branchIndex: branchIndex,
+            value: placeholder, // Set initial value to the placeholder
+            placeholder: placeholder // Store the placeholder for later
+          };
+          nodes.push(childNode);
+          links.push({ source: parentNode, target: childNode });
+      }
+
+      function addBranch(event, d) {
+        event.stopPropagation();
+        if (d.childrenCount >= config.maxBranches || d.depth >= config.maxDepth) return;
+        
+        let newAngle;
+        let color;
+
+        if (d.depth === 0) {
+            const children = nodes.filter(n => n.parent && n.parent.id === d.id);
+            const usedColors = new Set(children.map(child => child.branchColor));
+            color = config.branchColors.find(c => !usedColors.has(c));
+            if (!color) {
+                console.warn("No available colors to create a new branch.");
+                return; 
+            }
+        } else {
+            color = d.branchColor;
+        }
+
+        if (d.depth === 0) {
+            const children = nodes.filter(n => n.parent && n.parent.id === d.id);
+            if (children.length < 2) {
+                newAngle = (d.childrenCount * 137.5) % 360;
+            } else {
+                const existingAngles = children.map(child => {
+                    const angleRad = Math.atan2(d.y - child.y, child.x - d.x);
+                    let angleDeg = angleRad * 180 / Math.PI;
+                    if (angleDeg < 0) angleDeg += 360;
+                    return angleDeg;
+                }).sort((a, b) => a - b);
+
+                let largestGap = 0;
+                let bestAngle = 0;
+
+                for (let i = 0; i < existingAngles.length - 1; i++) {
+                    const gap = existingAngles[i+1] - existingAngles[i];
+                    if (gap > largestGap) {
+                        largestGap = gap;
+                        bestAngle = existingAngles[i] + gap / 2;
+                    }
+                }
+
+                const wraparoundGap = (360 - existingAngles[existingAngles.length - 1]) + existingAngles[0];
+                if (wraparoundGap > largestGap) {
+                    const mid = (existingAngles[existingAngles.length - 1] + (existingAngles[0] + 360)) / 2;
+                    bestAngle = mid % 360;
+                }
+                newAngle = bestAngle;
+            }
+        } else {
+            const pa = Math.atan2(d.parent.y - d.y, d.x - d.parent.x) * 180 / Math.PI;
+            newAngle = pa + (Math.random() * 120 - 60);
+        }
+
+        createChildNode(d, newAngle, color);
+        d.childrenCount++;
+        update();
+      }
+
+      function deleteNode(event, d) {
+        event.stopPropagation();
+        if (!d.parent) return;
+        const idsToDelete = new Set([d.id]);
+        const queue = nodes.filter(n => n.parent === d);
+        while(queue.length > 0) {
+            const current = queue.shift();
+            idsToDelete.add(current.id);
+            nodes.filter(n => n.parent === current).forEach(child => queue.push(child));
+        }
+        if (d.parent) {
+            const parentNode = nodes.find(n => n.id === d.parent.id);
+            if(parentNode) parentNode.childrenCount--;
+        }
+        nodes = nodes.filter(n => !idsToDelete.has(n.id));
+        links = links.filter(l => !idsToDelete.has(l.source.id) && !idsToDelete.has(l.target.id));
+        update();
+      }
+
+      function showNote(event, d) {
+        event.stopPropagation();
+        d3.select('.note-popup').remove();
+        d3.select('.modal-overlay').remove();
+        svg.select('.note-connector-line').remove();
+        
+        const color = d.branchColor || config.coreNodeColor;
+        const body = d3.select('body');
+
+        const viewportW = window.innerWidth;
+        const viewportH = window.innerHeight;
+        
+        const popupX_viewport = (viewportW - config.noteWidth) / 2;
+        const popupY_viewport = (viewportH / 2) - (350 / 2); // Use fixed height for positioning
+        
+        const nodeTargetX_viewport = popupX_viewport - (d.width / 2) - config.noteOffset;
+        const nodeTargetY_viewport = viewportH / 2;
+
+        const newPanX = nodeTargetX_viewport - d.x;
+        const newPanY = nodeTargetY_viewport - d.y;
+        
+        currentPan = { x: newPanX, y: newPanY };
+        
+        container.style('transform', `translate(${currentPan.x}px, ${currentPan.y}px)`);
+        
+        const overlay = body.append('div').attr('class', 'modal-overlay');
+        
+        const popup = body.append('div')
+            .attr('class', 'note-popup')
+            .style('border-color', color)
+            .style('left', `${popupX_viewport}px`)
+            .style('top', `${popupY_viewport}px`);
+
+        const contentWrapper = popup.append('div').attr('class', 'note-content-wrapper');
+        
+        const editableDiv = contentWrapper.append('div')
+            .attr('class', 'note-editable')
+            .attr('contenteditable', true)
+            .html(d.note || '');
+            
+        // --- EVENT LISTENER FOR NOTE LINKS ---
+        // Use event delegation to handle clicks on dynamically created links.
+        editableDiv.on('click', (event) => {
+            // Check if the clicked element is an anchor tag.
+            if (event.target.tagName === 'A') {
+                event.preventDefault(); // Prevent contenteditable from interfering.
+                const url = event.target.getAttribute('href');
+                if (url) {
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                }
+            }
+        });
+
+        // Add a paste event listener for intuitive image insertion
+        editableDiv.on('paste', (event) => {
+            const clipboardData = event.clipboardData || window.clipboardData;
+            if (!clipboardData) return;
+
+            const items = clipboardData.items;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    event.preventDefault(); // Prevent default paste behavior
+                    const blob = items[i].getAsFile();
+                    
+                    // Save current cursor position before processing
+                    const selection = window.getSelection();
+                    if (selection.rangeCount > 0) {
+                        activeNoteContext = {
+                            editableDiv: editableDiv.node(),
+                            savedRange: selection.getRangeAt(0)
+                        };
+                    }
+                    processImageBlob(blob);
+                    return; // Stop after handling the first image
+                }
+            }
+        });
+            
+        const closeAndRemove = () => {
+            activeNoteContext = null; // Clear context on close
+            currentPan = { x: 0, y: 0 };
+            container.style('transform', 'translate(0,0)');
+            popup.remove();
+            overlay.remove();
+            svg.select('.note-connector-line').remove();
+        };
+        
+        const confirmAndRemove = () => {
+            d.note = linkifyNoteContent(editableDiv.html());
+            update();
+            closeAndRemove();
+        };
+
+        popup.append('button').attr('class', 'note-popup-btn note-cancel-btn')
+            .style('background-color', color)
+            .html('&#x2715;').on('click', closeAndRemove);
+            
+        popup.append('button').attr('class', 'note-popup-btn note-confirm-btn')
+            .style('background-color', color)
+            .html('&#x2713;').on('click', confirmAndRemove);
+        
+        setTimeout(() => {
+            const noteCenterX_svg = (viewportW / 2) - currentPan.x;
+            const noteCenterY_svg = (viewportH / 2) - currentPan.y;
+
+            svg.append('line')
+                .attr('class', 'note-connector-line')
+                .attr('x1', d.x)
+                .attr('y1', d.y)
+                .attr('x2', noteCenterX_svg)
+                .attr('y2', noteCenterY_svg)
+                .attr('stroke', color)
+                .attr('stroke-width', config.borderWidths[d.depth] || '1px')
+                .style('opacity', 0)
+              .transition()
+                .duration(500)
+                .style('opacity', 1);
+
+        }, config.panDuration);
+
+        overlay.on('click', confirmAndRemove);
+        editableDiv.node().focus();
+      }
+
+      // --- 7. D3 UPDATE PATTERN ---
+      function update() {
+        linkSelection = svg.selectAll('line:not(.note-connector-line)').data(links, d => `${d.source.id}-${d.target.id}`)
+          .join(
+            enter => enter.append('line')
+              .attr('stroke', d => d.target.branchColor)
+              .attr('stroke-width', d => config.borderWidths[d.source.depth + 1] || '1px'),
+            update => update,
+            exit => exit.remove()
+          );
+
+        nodeSelection = container.selectAll('.node-group').data(nodes, d => d.id);
+        nodeSelection.exit().remove();
+        
+        const nodeEnter = nodeSelection.enter().append('div')
+          .attr('class', d => `node-group depth-${d.depth}`)
+          .style('background-color', d => d.parent ? lightenColor(d.branchColor, 95) : '#fff')
+          .each(function(d) { d.dom = this; })
+          .call(drag());
+
+        nodeEnter.append('input')
+          .attr('type', 'text')
+          .attr('class', d => `box ${d.parent ? 'keyword' : 'core'}`)
+          .style('font-family', d => d.fontFamily || 'sans-serif')
+          .style('font-size', d => {
+              const style = config.branchStyles[d.branchIndex % config.branchStyles.length];
+              return style.fontSizes[d.depth] || '14px';
+          })
+          .style('font-weight', d => d.fontFamily.includes('Roboto') ? 600 : null)
+          .property('value', d => d.value) // Set value from data
+          .style('color', d => d.parent ? d.branchColor : '#000')
+          .each(function(d) { d.input = this; })
+          .each(function(d) { adjustWidth(this); })
+          .on('input', function() { adjustWidth(this); })
+          .on('keydown', (event, d) => confirmNode(event, d))
+          .on('focus', function(event, d) {
+            if (this.value === "Your Big Idea" || (d.placeholder && this.value === d.placeholder)) {
+              this.value = "";
+              this.style.color = '#000';
+            }
+          })
+          .on('click', function(event, d) {
+            // Only trigger if the node is a confirmed link
+            if (this.readOnly && d3.select(d.dom).classed('is-link')) {
+                event.preventDefault(); // Prevent any other unwanted actions
+                let url = this.value;
+                // Prepend http:// if it's missing for window.open to work correctly
+                if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                    url = 'http://' + url;
+                }
+                window.open(url, '_blank', 'noopener,noreferrer');
+            }
+          })
+          .on('dblclick', function(event, d) {
+            if (this.readOnly) {
+              // Just remove the class, no need to touch listeners
+              d3.select(d.dom).classed('is-link', false); 
+
+              this.readOnly = false;
+              d.dom.style.backgroundColor = '#fff';
+              this.style.color = '#000';
+              this.focus();
+              this.select();
+            }
+          })
+          .on('blur', function(event, d) {
+            if (!this.readOnly && this.value.trim() !== "") {
+              styleConfirmedNode(d);
+              simulation.alpha(1).restart();
+            } else if (this.value.trim() === '') {
+              this.value = d.placeholder || "Your Big Idea";
+              this.style.color = d.parent ? d.branchColor : '#000';
+              d.dom.style.backgroundColor = d.parent ? lightenColor(d.branchColor, 95) : '#fff';
+            }
+          });
+
+        nodeEnter.filter(d => d.parent)
+          .append('span').attr('class', 'action-btn close-btn').style('background-color', d => d.branchColor)
+          .html('&#x2715;').on('click', deleteNode);
+
+        nodeEnter.filter(d => d.depth < config.maxDepth)
+          .append('span').attr('class', 'action-btn add-btn').style('background-color', d => d.branchColor || '#6c757d')
+          .html('+').on('click', addBranch);
+
+        nodeEnter.append('div').attr('class', 'note-btn').on('click', showNote);
+
+        nodeSelection = nodeEnter.merge(nodeSelection);
+        
+        nodeSelection.each(function(d) {
+            const group = d3.select(this);
+            const hasNote = d.note && d.note.trim() !== '' && d.note.trim() !== '<br>';
+            const color = d.branchColor || config.coreNodeColor;
+            
+            group.select('.note-btn')
+              .html(hasNote ? noteIconFilled : noteIconOutline)
+              .style('opacity', hasNote ? 1 : null)
+              .select('svg')
+                .attr('stroke', hasNote ? 'white' : color)
+                .attr('stroke-width', 2)
+                .attr('stroke-linejoin', 'round')
+                .attr('fill', hasNote ? color : 'white');
+            
+            group.style('border-color', d.parent ? d.branchColor : '#333');
+            group.select('.add-btn').style('display', d.childrenCount >= config.maxBranches ? 'none' : null);
+        });
+
+        nodeSelection.filter(d => d.depth === 1).each(function(d) {
+            const inputElement = d.input;
+            if (inputElement) {
+                setTimeout(() => {
+                    adjustWidth(inputElement);
+                }, 100);
+            }
+        });
+
+        simulation.nodes(nodes);
+        simulation.force('link').links(links);
+        simulation.alpha(0.3).restart();
+        saveStateToLocalStorage(); // Auto-save on every update
+      }
+
+      // --- 8. SIMULATION AND EVENT HANDLERS ---
+      function ticked() {
+        svg.selectAll('line:not(.note-connector-line)')
+          .attr('x1', d => d.source.x)
+          .attr('y1', d => d.source.y)
+          .attr('x2', d => d.target.x)
+          .attr('y2', d => d.target.y);
+
+        nodeSelection
+          .each(function(d) {
+              const rect = this.getBoundingClientRect();
+              d.width = rect.width;
+              d.height = rect.height;
+          })
+          .style('left', d => `${d.x}px`)
+          .style('top', d => `${d.y}px`)
+          .style('transform', `translate(-50%, -50%)`);
+      }
+
+      function handleResize() {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        svg.attr('width', width).attr('height', height);
+        simulation.force('center', d3.forceCenter(width / 2, height / 2));
+        
+        simulation.force('x_pull')
+            .x(d => {
+                return d.x < width / 2 ? config.margin : width - config.margin;
+            })
+            .strength(d => {
+                const distanceToCenter = Math.abs(d.x - width / 2);
+                return Math.min(0.2, distanceToCenter / (width / 2) * config.pullStrengthMultiplier);
+            });
+
+        simulation.alpha(1).restart();
+      }
+      
+      function drag() {
+        function dragstarted(event, d) {
+          if (!event.active) simulation.alphaTarget(0.3).restart();
+          d.fx = event.x - currentPan.x;
+          d.fy = event.y - currentPan.y;
+        }
+        function dragged(event, d) {
+          d.fx = event.x - currentPan.x;
+          d.fy = event.y - currentPan.y;
+        }
+        function dragended(event, d) {
+          if (!event.active) simulation.alphaTarget(0);
+          d.fx = null;
+          d.fy = null;
+        }
+        return d3.drag()
+          .on("start", dragstarted)
+          .on("drag", dragged)
+          .on("end", dragended);
+      }
+
+      // --- 9. SAVE/LOAD/CLEAR FUNCTIONS ---
+      function saveStateToLocalStorage() {
+        try {
+            const savableNodes = nodes.map(node => ({
+                id: node.id, x: node.x, y: node.y, fx: node.fx, fy: node.fy,
+                parentId: node.parent ? node.parent.id : null,
+                childrenCount: node.childrenCount, depth: node.depth,
+                branchColor: node.branchColor, note: node.note,
+                fontFamily: node.fontFamily, branchIndex: node.branchIndex,
+                value: node.input ? node.input.value : (node.value || ''),
+                placeholder: node.placeholder
+            }));
+            const savableLinks = links.map(link => ({
+                sourceId: link.source.id, targetId: link.target.id
+            }));
+            const stateToSave = {
+                nodes: savableNodes, links: savableLinks, nextId: nextId, authorName: authorName
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+        } catch (error) {
+            console.error("Could not save to local storage:", error);
+        }
+      }
+
+      function loadFromStorage() {
+        try {
+            const savedData = localStorage.getItem(STORAGE_KEY);
+            if (savedData) {
+                const loadedState = JSON.parse(savedData);
+                if (processLoadedData(JSON.stringify(loadedState))) {
+                    authorName = loadedState.authorName || '';
+                    if (authorName) {
+                        document.getElementById('author-name-input').value = authorName;
+                        document.getElementById('print-mindmap-btn').style.display = 'flex';
+                    }
+                    return true;
+                }
+            }
+        } catch (error) {
+            console.error("Failed to load state from local storage:", error);
+        }
+        return false;
+      }
+
+      function triggerSave() {
+        try {
+          const authorInput = document.getElementById('author-name-input');
+          if (authorInput.value.trim()) {
+              authorName = authorInput.value.trim();
+          }
+
+          if (!authorName) {
+              showModal('Name Required', 'Please enter your name before saving.');
+              return;
+          }
+
+          const savableNodes = nodes.map(node => ({
+            id: node.id,
+            x: node.x, y: node.y,
+            fx: node.fx, fy: node.fy,
+            parentId: node.parent ? node.parent.id : null,
+            childrenCount: node.childrenCount,
+            depth: node.depth,
+            branchColor: node.branchColor,
+            note: node.note,
+            fontFamily: node.fontFamily,
+            branchIndex: node.branchIndex,
+            value: node.input ? node.input.value : (node.value || ''),
+            placeholder: node.placeholder // Save the original placeholder
+          }));
+
+          const savableLinks = links.map(link => ({
+            sourceId: link.source.id,
+            targetId: link.target.id
+          }));
+
+          const mindmapData = {
+            nodes: savableNodes,
+            links: savableLinks,
+            nextId: nextId,
+            authorName: authorName
+          };
+          
+          const mindmapJSON = JSON.stringify(mindmapData, null, 2);
+          const blob = new Blob([mindmapJSON], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          
+          const coreNode = nodes.find(n => n.depth === 0);
+          const coreValue = coreNode && coreNode.input ? coreNode.input.value : 'My';
+          const sanitizedCoreValue = coreValue.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+          const sanitizedAuthorName = authorName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+          
+          a.download = `${sanitizedAuthorName}_${sanitizedCoreValue}_MindMap.json`;
+          
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          
+          hideSaveUI();
+
+          const saveBtn = document.getElementById('save-mindmap-btn');
+          const originalText = saveBtn.textContent;
+          saveBtn.textContent = 'Mindmap Saved';
+          saveBtn.style.backgroundColor = '#2E7D32';
+          saveBtn.style.color = '#FFFFFF';
+          
+          document.getElementById('print-mindmap-btn').style.display = 'flex';
+
+          setTimeout(() => {
+            saveBtn.textContent = originalText;
+            saveBtn.style.backgroundColor = '';
+            saveBtn.style.color = '';
+          }, 3000);
+
+        }
+        catch (error) {
+          console.error('Failed to save mindmap:', error);
+          showModal('Save Error', 'An unexpected error occurred while trying to save the mindmap.');
+        }
+      }
+
+      function showSaveUI() {
+          const saveUiContainer = document.getElementById('save-ui-container');
+          const saveBtnRect = document.getElementById('save-mindmap-btn').getBoundingClientRect();
+          
+          saveUiContainer.style.left = `${saveBtnRect.left}px`;
+          saveUiContainer.style.display = 'flex';
+          document.getElementById('author-name-input').focus();
+      }
+      
+      function hideSaveUI() {
+          document.getElementById('save-ui-container').style.display = 'none';
+      }
+
+      function processLoadedData(mindmapJSON) {
+        try {
+            const mindmapData = JSON.parse(mindmapJSON);
+
+            if (!mindmapData.nodes || !mindmapData.links || !Array.isArray(mindmapData.nodes)) {
+                console.error('Invalid or corrupt mindmap data found.');
+                return false;
+            }
+
+            nodes = [];
+            links = [];
+            nextId = mindmapData.nextId || 0;
+            
+            document.getElementById('print-mindmap-btn').style.display = 'none';
+
+            const tempNodesMap = new Map();
+            mindmapData.nodes.forEach(savedNode => {
+              const newNode = { ...savedNode, dom: null, input: null, parent: null };
+              if (newNode.branchIndex === undefined) newNode.branchIndex = 0;
+              if (newNode.note === undefined) newNode.note = '';
+              nodes.push(newNode);
+              tempNodesMap.set(newNode.id, newNode);
+            });
+
+            nodes.forEach(node => {
+              if (node.parentId !== null) {
+                node.parent = tempNodesMap.get(node.parentId);
+              }
+            });
+
+            mindmapData.links.forEach(savedLink => {
+              const sourceNode = tempNodesMap.get(savedLink.sourceId);
+              const targetNode = tempNodesMap.get(savedLink.targetId);
+              if (sourceNode && targetNode) {
+                links.push({ source: sourceNode, target: targetNode });
+              }
+            });
+            
+            const fontPromises = nodes.map(node => loadFont(node.fontFamily));
+            Promise.all(fontPromises).then(() => {
+                document.fonts.ready.then(() => {
+                    update();
+                    nodes.forEach(d => {
+                        if (d.input) {
+                            d.input.value = d.value;
+                            if (d.value && d.value.trim() !== "" && !config.placeholderTexts.includes(d.value) && d.value !== "Your Big Idea") {
+                                styleConfirmedNode(d);
+                            }
+                        }
+                    });
+                    setTimeout(() => {
+                        nodes.forEach(d => {
+                            if (d.input) {
+                                adjustWidth(d.input);
+                            }
+                        });
+                        simulation.alpha(0.3).restart();
+                    }, 50);
+                });
+            });
+            return true;
+        } catch (error) {
+          console.error('Failed to load mindmap:', error);
+          return false;
+        }
+      }
+
+      function startNewMindmap() {
+          simulation.stop();
+          // Reset data arrays
+          nodes = [];
+          links = [];
+          
+          // Call update with empty data to trigger exit selection and remove all DOM elements
+          update();
+
+          // Now, create the new mindmap
+          nextId = 0;
+          authorName = '';
+          placeholderIndex = 0;
+          document.getElementById('print-mindmap-btn').style.display = 'none';
+          document.getElementById('author-name-input').value = '';
+
+          const width = window.innerWidth;
+          const height = window.innerHeight;
+          const coreNode = {
+              id: nextId,
+              x: width / 2, y: height / 2,
+              fx: width / 2, fy: height / 2,
+              parent: null,
+              childrenCount: 0,
+              depth: 0,
+              branchColor: null,
+              note: '',
+              branchIndex: 0,
+              fontFamily: config.branchStyles[0].fontFamily,
+              value: 'Your Big Idea',
+              placeholder: 'Your Big Idea'
+          };
+          nodes.push(coreNode);
+          
+          // Call update again to draw the new core node and trigger auto-save
+          update();
+      }
+
+      // --- 10. PRINT FUNCTION ---
+      async function printMindmap() {
+        if (!authorName) {
+            showModal(
+                'Name Required',
+                'Please save the mindmap and provide your name before printing.',
+                [
+                    { text: 'Cancel', class: 'secondary' },
+                    { text: 'Save Now', class: 'primary', action: showSaveUI }
+                ]
+            );
+            return;
+        }
+        const { jsPDF } = window.jspdf;
+        const printBtn = document.getElementById('print-mindmap-btn');
+        const originalText = printBtn.textContent;
+        printBtn.textContent = 'Generating PDF...';
+
+        const mainCanvas = await html2canvas(document.querySelector("#mindmap-container"), {
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#ffffff',
+            scale: 3
+        });
+        
+        const imgData = mainCanvas.toDataURL('image/jpeg', 0.7);
+        const doc = new jsPDF({
+            orientation: 'landscape',
+            unit: 'mm',
+            format: 'a4'
+        });
+
+        const a4_width_landscape = doc.internal.pageSize.getWidth();
+        const a4_height_landscape = doc.internal.pageSize.getHeight();
+        const img_ratio = mainCanvas.width / mainCanvas.height;
+        const a4_ratio = a4_width_landscape / a4_height_landscape;
+        
+        let img_w, img_h;
+        if (img_ratio > a4_ratio) {
+            img_w = a4_width_landscape;
+            img_h = a4_width_landscape / img_ratio;
+        } else {
+            img_h = a4_height_landscape;
+            img_w = a4_height_landscape * img_ratio;
+        }
+        
+        const x_pos = (a4_width_landscape - img_w) / 2;
+        const y_pos = (a4_height_landscape - img_h) / 2;
+
+        const coreNode = nodes.find(n => n.depth === 0);
+        const coreValue = coreNode && coreNode.input ? coreNode.input.value : 'My MindMap';
+        const pageHeader = authorName ? `${authorName} - ${coreValue}` : coreValue;
+
+        function addHeader(doc) {
+            doc.setFontSize(14);
+            doc.setTextColor('#1d3557');
+            doc.text(pageHeader, 10, 10);
+        }
+
+        addHeader(doc);
+        doc.addImage(imgData, 'JPEG', x_pos, y_pos, img_w, img_h);
+
+        const notesWithContent = nodes.filter(n => n.note && n.note.trim() !== '' && n.note.trim() !== '<br>');
+
+        if (notesWithContent.length > 0) {
+            doc.addPage('a4', 'portrait'); // Changed to portrait
+            addHeader(doc);
+
+            const pageW = doc.internal.pageSize.getWidth();
+            const pageH = doc.internal.pageSize.getHeight();
+            const margin = 10;
+            const contentWidth = pageW - (margin * 2);
+            let currentY = 20; // Start below header
+
+            // Create a temporary container for rendering notes for html2canvas
+            const tempNoteContainer = document.createElement('div');
+            tempNoteContainer.style.position = 'absolute';
+            tempNoteContainer.style.left = '-9999px';
+            tempNoteContainer.style.top = '0';
+            tempNoteContainer.style.width = contentWidth * 3.78 + 'px'; // Convert mm to px for canvas
+            document.body.appendChild(tempNoteContainer);
+
+            for (const noteNode of notesWithContent) {
+                // --- 1. Get Title and calculate its height ---
+                let path = [];
+                let current = noteNode;
+                while(current) {
+                    const value = current.input ? current.input.value : current.value;
+                    path.unshift(value || '');
+                    current = current.parent;
+                }
+                const title = path.length > 1 ? path[0] + '\n' + path.slice(1).join(' > ') : path[0];
+                
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'bold');
+                const titleLines = doc.splitTextToSize(title, contentWidth - 5);
+                const titleHeight = (titleLines.length * 4) + 5; // Line height approx 4mm, plus padding
+
+                // --- 2. Render note content to canvas and get its height ---
+                const noteRenderDiv = document.createElement('div');
+                noteRenderDiv.style.padding = '5px';
+                noteRenderDiv.style.background = 'white';
+                noteRenderDiv.style.fontFamily = 'sans-serif';
+                noteRenderDiv.style.fontSize = '16px';
+                noteRenderDiv.style.lineHeight = '1.5';
+                noteRenderDiv.innerHTML = noteNode.note;
+                tempNoteContainer.appendChild(noteRenderDiv);
+
+                const noteCanvas = await html2canvas(noteRenderDiv, { scale: 2, backgroundColor: null, width: noteRenderDiv.scrollWidth });
+                const noteImgData = noteCanvas.toDataURL('image/png');
+                const noteImgHeightMM = (noteCanvas.height / noteCanvas.width) * (contentWidth - 5);
+                
+                tempNoteContainer.innerHTML = ''; // Clear for next note
+
+                // --- 3. Check for page break ---
+                const totalNoteHeight = titleHeight + noteImgHeightMM + 10; // Add margin for bottom
+                if (currentY + totalNoteHeight > pageH - margin) {
+                    doc.addPage('a4', 'portrait'); // Changed to portrait
+                    addHeader(doc);
+                    currentY = 20; // Reset Y position
+                }
+
+                // --- 4. Draw everything to the PDF ---
+                const borderColor = noteNode.branchColor || '#000000';
+                doc.setDrawColor(borderColor);
+                doc.setLineWidth(0.5);
+                // Draw the box with dynamic height
+                doc.rect(margin, currentY, contentWidth, totalNoteHeight - 5); 
+
+                // Draw title
+                doc.setTextColor('#000000');
+                doc.text(titleLines, margin + 2.5, currentY + 5);
+
+                // Draw note content image
+                doc.addImage(noteImgData, 'PNG', margin + 2.5, currentY + titleHeight, contentWidth - 5, noteImgHeightMM);
+
+                // Update Y for next note
+                currentY += totalNoteHeight;
+            }
+            
+            document.body.removeChild(tempNoteContainer); // Clean up
+        }
+
+        const sanitizedFilename = coreValue.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        doc.save(`${sanitizedFilename}_MindMap.pdf`);
+        printBtn.textContent = originalText;
+      }
+
+
+      // --- 11. INITIALIZATION ---
+      function init() {
+        handleResize();
+        linkSelection = svg.selectAll('line:not(.note-connector-line)');
+        
+        const jsonFileInput = document.getElementById('json-file-input');
+        const imageFileInput = document.getElementById('image-file-input');
+        const authorInput = document.getElementById('author-name-input');
+        const instructionOverlay = document.getElementById('instruction-modal-overlay');
+        const instructionCloseBtn = document.getElementById('instruction-modal-close-btn');
+
+        // --- New Startup Logic ---
+        const startupModalOverlay = document.getElementById('startup-modal-overlay');
+        const hasSavedData = localStorage.getItem(STORAGE_KEY);
+
+        if (hasSavedData) {
+            startupModalOverlay.style.display = 'block';
+        } else {
+            instructionOverlay.style.display = 'flex';
+            startNewMindmap();
+        }
+
+        document.getElementById('startup-continue-btn').addEventListener('click', () => {
+            startupModalOverlay.style.display = 'none';
+            if (!loadFromStorage()) {
+                startNewMindmap(); // Fallback if loading fails
+            }
+        });
+
+        document.getElementById('startup-new-btn').addEventListener('click', () => {
+            startupModalOverlay.style.display = 'none';
+            startNewMindmap();
+            instructionOverlay.style.display = 'flex';
+        });
+
+        // Set up the single, global event listener for the image file input
+        imageFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                processImageBlob(file);
+            }
+            imageFileInput.value = ''; // Reset for next use
+        });
+
+        d3.select('#save-mindmap-btn').on('click', () => {
+            if (authorName) {
+                triggerSave();
+            } else {
+                showSaveUI();
+            }
+        });
+        
+        d3.select('#final-save-btn').on('click', triggerSave);
+        
+        authorInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' && authorInput.value.trim()) {
+                triggerSave();
+            }
+        });
+        
+        authorInput.addEventListener('blur', () => {
+            if (authorInput.value.trim()) {
+                authorName = authorInput.value.trim();
+            }
+        });
+        
+        d3.select('#load-mindmap-btn').on('click', () => {
+            jsonFileInput.click();
+        });
+        
+        jsonFileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const content = e.target.result;
+                simulation.stop();
+                d3.selectAll('.node-group').remove();
+                d3.selectAll('line:not(.note-connector-line)').remove();
+                if (!processLoadedData(content)) {
+                    showModal('Load Error', 'Could not load the mindmap file. It may be invalid or corrupted.');
+                    startNewMindmap();
+                }
+            };
+            reader.readAsText(file);
+            jsonFileInput.value = ''; // Reset for next use
+        });
+
+        d3.select('#clear-new-btn').on('click', () => {
+            showModal(
+                'Clear Mindmap?',
+                'This will clear the current mindmap and start a new one.',
+                [
+                    { text: 'Cancel', class: 'secondary' },
+                    { 
+                        text: 'Clear', 
+                        class: 'primary', 
+                        action: () => {
+                            localStorage.removeItem(STORAGE_KEY);
+                            location.reload();
+                        } 
+                    }
+                ]
+            );
+        });
+
+        d3.select('#print-mindmap-btn').on('click', printMindmap);
+        
+        const closeInstructions = () => {
+            instructionOverlay.style.display = 'none';
+        };
+
+        instructionCloseBtn.addEventListener('click', closeInstructions);
+        instructionOverlay.addEventListener('click', (event) => {
+            if (event.target === instructionOverlay) {
+                closeInstructions();
+            }
+        });
+        
+        window.addEventListener('resize', handleResize);
+      }
+
+      init();
+    });
+  </script>
+</body>
+</html>
