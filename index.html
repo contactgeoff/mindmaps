@@ -544,22 +544,17 @@
             const node = findNodeById(nodeId);
             if (!node) return;
 
-            // **NEW**: Scroll node into view before editing
             const targetX = node.x - (viewport.clientWidth / 2);
-            const targetY = node.y - (viewport.clientHeight / 3); // Position in top third
-            viewport.scrollTo({ top: targetY, left: targetX, behavior: 'smooth' });
+            const targetY = node.y - (viewport.clientHeight / 3);
+            viewport.scrollTo({ top: targetY, left: targetX, behavior: 'auto' });
 
             if (textEl.textContent === node.placeholder) {
                 textEl.textContent = '';
             }
 
             textEl.setAttribute('contenteditable', 'true');
-            
-            // Use a timeout to allow the scroll to finish before focusing
-            setTimeout(() => {
-                textEl.focus();
-                document.execCommand('selectAll', false, null);
-            }, 400);
+            textEl.focus();
+            document.execCommand('selectAll', false, null);
             
             function onBlur() {
                 textEl.setAttribute('contenteditable', 'false');
