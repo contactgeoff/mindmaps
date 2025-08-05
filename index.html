@@ -196,7 +196,7 @@
         /* --- Floating Action Button (FAB) Menu --- */
         #fab-container {
             position: fixed;
-            bottom: 20px;
+            top: 20px;
             right: 20px;
             z-index: 100;
             display: flex;
@@ -705,18 +705,19 @@
             const node = findNodeById(nodeId);
             if (!node) return;
 
-            nodeEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-
             if (textEl.textContent === node.placeholder) {
                 textEl.textContent = '';
             }
 
             textEl.setAttribute('contenteditable', 'true');
             
-            setTimeout(() => {
-                textEl.focus();
-                document.execCommand('selectAll', false, null);
-            }, 400); 
+            // Focus the element immediately to trigger the keyboard.
+            // This must happen within the same event handler as the user tap.
+            textEl.focus();
+            document.execCommand('selectAll', false, null);
+
+            // Now, scroll the newly focused element into view.
+            nodeEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
             
             function onBlur() {
                 textEl.setAttribute('contenteditable', 'false');
