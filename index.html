@@ -250,6 +250,12 @@
             border-radius: 8px;
             margin: 10px 0;
         }
+        
+        .note-content a {
+            color: #007bff;
+            text-decoration: underline;
+            cursor: pointer;
+        }
 
         #alert-box, #startup-choice-modal, #name-input-modal {
             padding: 20px;
@@ -513,6 +519,7 @@
         const viewport = document.getElementById('viewport');
         const canvas = document.getElementById('mindmap-canvas');
         const noteEditorOverlay = document.getElementById('note-editor-overlay');
+        const noteContent = document.getElementById('note-content');
         const noteTitle = document.getElementById('note-title');
         const noteConfirmBtn = document.getElementById('note-confirm-btn');
         const noteCancelBtn = document.getElementById('note-cancel-btn');
@@ -607,6 +614,43 @@
 
         function hideMessage() {
             alertOverlay.style.display = 'none';
+        }
+
+        function linkifyNoteContent(htmlContent) {
+            if (!htmlContent) return '';
+
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlContent;
+
+            const urlRegex = /((?:https?:\/\/|www\.)[^\s<>"'()]+)/g;
+
+            function findAndReplace(node) {
+                if (node.nodeType === 3 && node.parentNode.nodeName !== 'A') {
+                    const text = node.nodeValue;
+                    const newHtml = text.replace(urlRegex, (url) => {
+                        let href = url;
+                        if (href.startsWith('www.')) {
+                            href = 'http://' + href;
+                        }
+                        return `<a href="${href}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+                    });
+
+                    if (newHtml !== text) {
+                        const replacementFragment = document.createDocumentFragment();
+                        const wrapper = document.createElement('div');
+                        wrapper.innerHTML = newHtml;
+                        while (wrapper.firstChild) {
+                            replacementFragment.appendChild(wrapper.firstChild);
+                        }
+                        node.parentNode.replaceChild(replacementFragment, node);
+                    }
+                } else if (node.nodeType === 1) {
+                    Array.from(node.childNodes).forEach(findAndReplace);
+                }
+            }
+
+            findAndReplace(tempDiv);
+            return tempDiv.innerHTML;
         }
 
 
@@ -1044,7 +1088,8 @@
         function confirmNote() {
             const node = findNodeById(state.editingNodeId);
             if (node) {
-                node.note = document.getElementById('note-content').innerHTML;
+                const rawHTML = document.getElementById('note-content').innerHTML;
+                node.note = linkifyNoteContent(rawHTML);
             }
             hideNoteEditor();
         }
@@ -1228,7 +1273,17 @@
             if (e.target === noteEditorOverlay) cancelNote();
         });
 
-        document.getElementById('note-content').addEventListener('focusout', () => {
+        noteContent.addEventListener('click', (event) => {
+            if (event.target.tagName === 'A') {
+                event.preventDefault();
+                const url = event.target.getAttribute('href');
+                if (url) {
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                }
+            }
+        });
+
+        noteContent.addEventListener('focusout', () => {
             const selection = window.getSelection();
             if (selection.rangeCount > 0) {
                 state.savedSelection = selection.getRangeAt(0);
@@ -1342,4 +1397,4 @@
     });
     </script>
 </body>
-</html>
+</ht
