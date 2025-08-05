@@ -168,7 +168,8 @@
         }
 
         .modal-box {
-            width: 90%;
+            width: auto; /* Let content and margin define width */
+            margin: auto 5%; /* Center vertically, 5% horizontal margins */
             max-width: 500px;
             background-color: white;
             border-radius: 12px;
@@ -483,8 +484,8 @@
             branchColors: ['#e6194B', '#3cb44b', '#4363d8', '#f58231', '#911eb4'],
             backgroundTints: [55, 70, 85],
             placeholderTexts: [
-                "What next?", "Why this…?", "More ideas…", "New point?", "How come…?",
-                "Links to…", "Dig deeper…", "What if...?", "Explain more…", "So what?"
+                "What next?", "Why this…?", "More ideas…?", "New point?", "How come…?",
+                "Links to…?", "Dig deeper…?", "What if...?", "Explain more…?", "So what?"
             ],
             branchStyles: [
                 { fontFamily: 'Roboto', fontSizes: ['18px', '16px', '15px', '14px'] },
@@ -964,7 +965,7 @@
 
         startupNewBtn.addEventListener('click', () => {
             startupChoiceOverlay.style.display = 'none';
-            startNewMap();
+            instructionOverlay.style.display = 'flex';
         });
 
         instructionCloseBtn.addEventListener('click', () => {
