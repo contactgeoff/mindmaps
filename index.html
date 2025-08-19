@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, minimum-scale=0.1, maximum-scale=5">
-    <title>Mobile Mindmap</title>
+    <title>Desktop & Mobile Mindmap</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <!-- Added DOMPurify for sanitizing HTML content -->
@@ -498,10 +498,10 @@
         <div id="instruction-modal" class="modal-box">
             <h3>Welcome to Mulberry Mindmap!</h3>
             <ul>
-                <li><strong>Start with an idea:</strong> Double-tap the main box to type your main topic.</li>
+                <li><strong>Start with an idea:</strong> Double-tap or double-click the main box to type your main topic.</li>
                 <li><strong>Add or remove ideas:</strong> Tap the <strong>+</strong> button to add a new idea, or <strong>&times;</strong> to remove one. You can add up to five branches and go three levels deep.</li>
                 <li><strong>Add notes & images:</strong> Tap the <strong>Note icon</strong> to open the editor. Use the <strong>Image icon</strong> inside the note to add a picture from your library.</li>
-                <li><strong>Pan & Zoom:</strong> Use one finger to scroll around your map and two fingers to pinch-zoom.</li>
+                <li><strong>Pan & Zoom:</strong> Use one finger to scroll around your map and two fingers to pinch-zoom. On desktop, use your mouse scroll wheel or trackpad.</li>
                 <li><strong>Save & Export:</strong> Your work is saved automatically. Use the menu button (&#9776;) to <strong>Export</strong> your map to a file or <strong>Print</strong> it to a PDF.</li>
             </ul>
             <button id="instruction-close-btn" class="modal-button">Let's Go!</button>
@@ -929,7 +929,7 @@
             const coreValue = coreNode ? coreNode.text : 'My';
             const sanitizedCoreValue = coreValue.replace(/[^a-z0-9]/gi, '_').toLowerCase();
             const sanitizedAuthorName = state.authorName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-          
+            
             downloadAnchorNode.setAttribute("href", dataStr);
             downloadAnchorNode.setAttribute("download", `${sanitizedAuthorName}_${sanitizedCoreValue}_mindmap.json`);
             
@@ -1253,6 +1253,7 @@
 
         // --- 10. EVENT LISTENERS ---
         let lastTap = 0;
+        // Listener for mobile double-tap
         canvas.addEventListener('touchend', (e) => {
             if (e.target.closest('.action-btn')) return;
             const target = e.target;
@@ -1265,6 +1266,17 @@
                     e.preventDefault();
                 }
                 lastTap = currentTime;
+            }
+        });
+
+        // Listener for desktop double-click
+        canvas.addEventListener('dblclick', (e) => {
+            if (e.target.closest('.action-btn')) return;
+            const target = e.target;
+            if (target.classList.contains('node-text')) {
+                const nodeEl = target.closest('.node');
+                enableEditing(nodeEl, target);
+                e.preventDefault();
             }
         });
         
