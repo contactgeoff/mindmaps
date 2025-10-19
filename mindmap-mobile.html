@@ -1,0 +1,1414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, minimum-scale=0.1, maximum-scale=5">
+    <title>Desktop & Mobile Mindmap</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Added DOMPurify for sanitizing HTML content -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
+    <style>
+        /* --- Basic Setup & Typography --- */
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Lacquer&family=Roboto+Serif:opsz,wght@8..144,400;8..144,700&family=Roboto+Condensed:wght@400;700&family=Silkscreen&display=swap');
+
+        :root {
+            --background-color: #f0f2f5;
+            --node-background: #ffffff;
+            --core-node-color: #4B0082; /* Mulberry Purple */
+            --bottom-bar-color: #ffffff;
+            --text-color: #1c1e21;
+            --line-color: #aeb4be;
+            --shadow-light: rgba(0, 0, 0, 0.1);
+            --shadow-medium: rgba(0, 0, 0, 0.2);
+            --fab-color: #30004d; /* Very Dark Purple */
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--background-color);
+        }
+
+        /* --- Main App Containers --- */
+        #viewport {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: scroll; /* ALLOWS NATIVE SCROLLING AND PINCH-ZOOM */
+            -webkit-overflow-scrolling: touch; /* Enables momentum scrolling on iOS */
+        }
+
+        #mindmap-canvas {
+            position: relative;
+            width: 5000px; /* Large canvas for panning */
+            height: 8000px;
+            transform-origin: 0 0;
+        }
+
+        /* --- Node Styling --- */
+        .node {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--node-background);
+            border-radius: 8px;
+            box-shadow: 0 2px 8px var(--shadow-light);
+            padding: 8px 12px;
+            transition: transform 0.4s ease-out, opacity 0.4s ease-out, background-color 0.4s, border-color 0.4s;
+            border-style: solid;
+            min-width: 100px;
+            box-sizing: border-box;
+        }
+
+        .node.depth-0 {
+            background-color: var(--core-node-color);
+            color: white;
+            border: none;
+            padding: 12px 18px;
+            z-index: 10;
+        }
+
+        .node-text {
+            outline: none;
+            white-space: nowrap;
+            text-align: center;
+            transition: font-size 0.4s, color 0.4s;
+        }
+
+        .node.depth-0 .node-text {
+            font-size: 18px;
+            font-weight: 700;
+        }
+        
+        /* --- Node Action Buttons --- */
+        .action-btn {
+            position: absolute;
+            border: none;
+            color: white;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s ease, background-color 0.4s, opacity 0.2s;
+            line-height: 1;
+            z-index: 5;
+            background-color: transparent; /* Default to no background */
+        }
+
+        .action-btn:active {
+            transform: scale(0.9);
+        }
+        
+        /* Hide buttons when the parent node is being edited */
+        .node.is-editing .action-btn {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .add-btn, .del-btn {
+             width: 28px; /* Smaller size */
+             height: 28px; /* Smaller size */
+             font-size: 18px;
+             box-shadow: 0 1px 4px var(--shadow-light);
+             border-radius: 50%;
+        }
+
+        .add-btn {
+            bottom: -24px; 
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .del-btn {
+            top: -16px;
+            right: -16px;
+        }
+        
+        .note-btn {
+            width: 36px; /* Tap area increased */
+            height: 36px; /* Tap area increased */
+            top: -20px; /* Adjusted for new size */
+            left: -20px; /* Adjusted for new size */
+        }
+        
+        .note-btn svg {
+            transition: fill 0.4s, stroke 0.4s;
+            width: 30px; /* 25% larger */
+            height: 30px; /* 25% larger */
+        }
+
+        /* --- Line Styling --- */
+        .line {
+            position: absolute;
+            background-color: var(--line-color);
+            transform-origin: 0 50%;
+            transition: transform 0.4s ease-out, width 0.4s ease-out, opacity 0.4s ease-out, background-color 0.4s;
+            z-index: -1;
+        }
+        
+        /* --- Modals: Note Editor, Alert, Startup --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 200;
+            display: none; /* Initially hidden */
+            align-items: center;
+            justify-content: center;
+            -webkit-backdrop-filter: blur(2px);
+            backdrop-filter: blur(2px);
+        }
+
+        .modal-box {
+            width: auto; /* Let content and margin define width */
+            margin: auto 5%; /* Center vertically, 5% horizontal margins */
+            max-width: 500px;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+        }
+
+        #note-editor {
+            position: relative;
+            width: 87vw;
+            max-width: 600px;
+            height: 70%;
+            padding-top: 10px; /* Space for hanging buttons */
+        }
+
+        .note-header {
+            padding: 15px 15px 10px;
+            font-size: 18px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        #note-title {
+            font-weight: 700;
+        }
+        
+        .note-modal-btn {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: none;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 8px var(--shadow-medium);
+            top: -16px;
+        }
+        
+        #note-confirm-btn {
+            left: -10px;
+        }
+
+        #note-cancel-btn {
+            right: -10px;
+        }
+
+        .note-header-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            color: #555;
+        }
+        
+        .note-content {
+            flex-grow: 1;
+            padding: 15px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            font-size: 16px;
+            line-height: 1.6;
+            outline: none;
+        }
+
+        .note-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        
+        .note-content a {
+            color: #007bff;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        #alert-box, #startup-choice-modal, #name-input-modal {
+            padding: 20px;
+            text-align: center;
+        }
+        #alert-message, #startup-choice-modal p, #name-input-modal p {
+            margin: 0 0 20px 0;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+        .modal-button {
+            background-color: var(--core-node-color);
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #startup-choice-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+        #startup-continue-btn {
+            background-color: #3cb44b;
+        }
+        
+        #author-name-input {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+        }
+
+        /* Instruction Modal */
+        #instruction-modal {
+            padding: 20px;
+        }
+        #instruction-modal h3 {
+            margin-top: 0;
+            font-size: 22px;
+            font-weight: bold;
+            color: #1d3557;
+            text-align: center;
+        }
+        #instruction-modal ul {
+            list-style-type: none;
+            padding: 0;
+            margin-top: 20px;
+        }
+        #instruction-modal li {
+            font-size: 16px;
+            color: #333;
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+        #instruction-modal li strong {
+            color: #4B0082;
+        }
+        #instruction-close-btn {
+            margin-top: 15px;
+        }
+
+
+        /* --- Floating Action Button (FAB) Menu --- */
+        #fab-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transform: translateZ(0);
+        }
+
+        .fab-menu {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 8px;
+            transform-origin: top center;
+            transform: scaleY(0);
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        #fab-container.open .fab-menu {
+            transform: scaleY(1);
+        }
+
+        #fab-main-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background-color: var(--fab-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            box-shadow: 0 4px 12px var(--shadow-medium);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .fab-button {
+            width: 48px;
+            height: 48px;
+            font-size: 22px;
+            margin-top: 12px;
+            background-color: #5a2a82;
+            border-radius: 50%;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            box-shadow: 0 4px 12px var(--shadow-medium);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        /* Hamburger Icon Styling */
+        .hamburger-icon {
+            width: 24px;
+            height: 18px;
+            position: relative;
+            transform: rotate(0deg);
+            transition: .5s ease-in-out;
+        }
+
+        .hamburger-icon span {
+            display: block;
+            position: absolute;
+            height: 3px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 2px;
+            opacity: 1;
+            left: 0;
+            transform: rotate(0deg);
+            transition: .25s ease-in-out;
+        }
+
+        .hamburger-icon span:nth-child(1) { top: 0px; }
+        .hamburger-icon span:nth-child(2) { top: 7px; }
+        .hamburger-icon span:nth-child(3) { top: 14px; }
+
+        #fab-container.open .hamburger-icon span:nth-child(1) {
+            top: 7px;
+            transform: rotate(135deg);
+        }
+        #fab-container.open .hamburger-icon span:nth-child(2) {
+            opacity: 0;
+            left: -24px;
+        }
+        #fab-container.open .hamburger-icon span:nth-child(3) {
+            top: 7px;
+            transform: rotate(-135deg);
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="viewport">
+        <div id="mindmap-canvas"></div>
+    </div>
+
+    <!-- FAB Menu -->
+    <div id="fab-container">
+        <button id="fab-main-btn" title="Open Menu">
+            <div class="hamburger-icon"><span></span><span></span><span></span></div>
+        </button>
+        <div class="fab-menu">
+            <button class="fab-button" id="export-btn" title="Export to File">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+            </button>
+            <button class="fab-button" id="import-btn" title="Import from File">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            </button>
+            <button class="fab-button" id="print-btn" title="Print Mindmap">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+            </button>
+            <button class="fab-button" id="recenter-btn" title="Recenter View">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 21v-2m0-14V3m9 9h-2M5 12H3m15.36-6.36l-1.42-1.42M6.36 17.64l-1.42-1.42m12.72 0l-1.42 1.42M6.36 6.36l-1.42 1.42"></path></svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Note Editor Modal -->
+    <div id="note-editor-overlay" class="modal-overlay">
+        <div id="note-editor" class="modal-box">
+            <button id="note-confirm-btn" class="note-modal-btn" title="Confirm Note">&#x2713;</button>
+            <button id="note-cancel-btn" class="note-modal-btn" title="Cancel Note">&times;</button>
+            <div class="note-header">
+                <button id="add-image-btn" class="note-header-btn" title="Add Image">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                </button>
+                <span id="note-title">Edit Note</span>
+            </div>
+            <div id="note-content" class="note-content" contenteditable="true"></div>
+        </div>
+    </div>
+
+    <!-- Custom Alert Modal -->
+    <div id="alert-overlay" class="modal-overlay">
+        <div id="alert-box" class="modal-box">
+            <p id="alert-message"></p>
+            <button id="alert-close-btn" class="modal-button">OK</button>
+        </div>
+    </div>
+    
+    <!-- Startup Choice Modal -->
+    <div id="startup-choice-overlay" class="modal-overlay">
+        <div id="startup-choice-modal" class="modal-box">
+            <p>Continue where you left off, or start a new mindmap?</p>
+            <div id="startup-choice-buttons">
+                <button id="startup-new-btn" class="modal-button">Start New</button>
+                <button id="startup-continue-btn" class="modal-button">Continue</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Name Input Modal -->
+    <div id="name-input-overlay" class="modal-overlay">
+        <div id="name-input-modal" class="modal-box">
+            <p>To save your file, please enter your name.</p>
+            <input type="text" id="author-name-input" placeholder="First Name and Surname">
+            <button id="name-save-btn" class="modal-button">Save</button>
+        </div>
+    </div>
+
+    <!-- Instruction Modal -->
+    <div id="instruction-overlay" class="modal-overlay">
+        <div id="instruction-modal" class="modal-box">
+            <h3>Welcome to Mulberry Mindmap!</h3>
+            <ul>
+                <li><strong>Start with an idea:</strong> Double-tap or double-click the main box to type your main topic.</li>
+                <li><strong>Add or remove ideas:</strong> Tap the <strong>+</strong> button to add a new idea, or <strong>&times;</strong> to remove one. You can add up to five branches and go three levels deep.</li>
+                <li><strong>Add notes & images:</strong> Tap the <strong>Note icon</strong> to open the editor. Use the <strong>Image icon</strong> inside the note to add a picture from your library.</li>
+                <li><strong>Pan & Zoom:</strong> Use one finger to scroll around your map and two fingers to pinch-zoom. On desktop, use your mouse scroll wheel or trackpad.</li>
+                <li><strong>Save & Export:</strong> Your work is saved automatically. Use the menu button (&#9776;) to <strong>Export</strong> your map to a file or <strong>Print</strong> it to a PDF.</li>
+            </ul>
+            <button id="instruction-close-btn" class="modal-button">Let's Go!</button>
+        </div>
+    </div>
+
+    <!-- Hidden file inputs -->
+    <input type="file" id="file-input" style="display: none;" accept=".json,application/json">
+    <input type="file" id="image-input" style="display: none;" accept="image/*">
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        // --- 1. DOM ELEMENT REFERENCES ---
+        const viewport = document.getElementById('viewport');
+        const canvas = document.getElementById('mindmap-canvas');
+        const noteEditorOverlay = document.getElementById('note-editor-overlay');
+        const noteContent = document.getElementById('note-content');
+        const noteTitle = document.getElementById('note-title');
+        const noteConfirmBtn = document.getElementById('note-confirm-btn');
+        const noteCancelBtn = document.getElementById('note-cancel-btn');
+        const fileInput = document.getElementById('file-input');
+        const imageInput = document.getElementById('image-input');
+        const addImageBtn = document.getElementById('add-image-btn');
+        const fabContainer = document.getElementById('fab-container');
+        const fabMainBtn = document.getElementById('fab-main-btn');
+        const exportBtn = document.getElementById('export-btn');
+        const importBtn = document.getElementById('import-btn');
+        const printBtn = document.getElementById('print-btn');
+        const recenterBtn = document.getElementById('recenter-btn');
+        const alertOverlay = document.getElementById('alert-overlay');
+        const alertMessage = document.getElementById('alert-message');
+        const alertCloseBtn = document.getElementById('alert-close-btn');
+        // Startup Modals
+        const startupChoiceOverlay = document.getElementById('startup-choice-overlay');
+        const startupContinueBtn = document.getElementById('startup-continue-btn');
+        const startupNewBtn = document.getElementById('startup-new-btn');
+        const instructionOverlay = document.getElementById('instruction-overlay');
+        const instructionCloseBtn = document.getElementById('instruction-close-btn');
+        // Name Input Modal
+        const nameInputOverlay = document.getElementById('name-input-overlay');
+        const authorNameInput = document.getElementById('author-name-input');
+        const nameSaveBtn = document.getElementById('name-save-btn');
+
+
+        // --- 2. CONFIGURATION & STATE ---
+        const STORAGE_KEY = 'mobileMindmapState';
+
+        function createRandomizedOffsets() {
+            const baseOffsets = [20, 40, 60, 80, 100, -20, -40, -60, -80, -100];
+            for (let i = baseOffsets.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [baseOffsets[i], baseOffsets[j]] = [baseOffsets[j], baseOffsets[i]];
+            }
+            return baseOffsets;
+        }
+
+        const config = {
+            canvasWidth: 5000,
+            canvasHeight: 8000,
+            nodeWidth: 150,
+            nodeHeight: 40,
+            hSpacing: 20,
+            vSpacing: [180, 220, 260],
+            randomizedOffsets: createRandomizedOffsets(),
+            lineThickness: [5, 4, 2],
+            branchColors: ['#e6194B', '#3cb44b', '#4363d8', '#f58231', '#911eb4'],
+            backgroundTints: [55, 70, 85],
+            placeholderTexts: [
+                "What next?", "Why this…?", "More ideas…?", "New point?", "How come…?",
+                "Links to…?", "Dig deeper…?", "What if...?", "Explain more…?", "So what?"
+            ],
+            branchStyles: [
+                { fontFamily: 'Roboto', fontSizes: ['18px', '16px', '15px', '14px'] },
+                { fontFamily: 'Roboto Serif', fontSizes: ['18px', '16px', '15px', '14px'] },
+                { fontFamily: 'Lacquer', fontSizes: ['20px', '18px', '16px', '14px'] },
+                { fontFamily: 'Roboto Condensed', fontSizes: ['18px', '17px', '16px', '15px'] },
+                { fontFamily: 'Silkscreen', fontSizes: ['16px', '14px', '13px', '12px'] },
+                { fontFamily: 'Roboto', fontSizes: ['18px', '16px', '15px', '14px'] }
+            ],
+            animationDuration: '0.4s',
+            imageResizeDimension: 500 // Max width for inserted images
+        };
+
+        let state = {
+            nodes: [],
+            nextId: 0,
+            editingNodeId: null,
+            placeholderIndex: 0,
+            savedSelection: null, // To store cursor position in note editor
+            authorName: null
+        };
+        
+        // --- 3. UTILITY & UI FUNCTIONS ---
+        function lightenColor(hex, percent) {
+            if (!hex) return '#ffffff';
+            let r = parseInt(hex.substring(1, 3), 16);
+            let g = parseInt(hex.substring(3, 5), 16);
+            let b = parseInt(hex.substring(5, 7), 16);
+            r = Math.round(r + (255 - r) * (percent / 100));
+            g = Math.round(g + (255 - g) * (percent / 100));
+            b = Math.round(b + (255 - b) * (percent / 100));
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+
+        function showMessage(message) {
+            alertMessage.textContent = message;
+            alertOverlay.style.display = 'flex';
+        }
+
+        function hideMessage() {
+            alertOverlay.style.display = 'none';
+        }
+
+        function linkifyNoteContent(htmlContent) {
+            if (!htmlContent) return '';
+
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlContent;
+
+            // Case-insensitive regex for URLs
+            const urlRegex = /((?:https?:\/\/|www\.)[^\s<>"'()]+)/gi;
+
+            function findAndReplace(node) {
+                if (node.nodeType === 3 && node.parentNode.nodeName !== 'A') {
+                    const text = node.nodeValue;
+                    const newHtml = text.replace(urlRegex, (url) => {
+                        let href = url;
+                        // Handle 'Www.' by checking case-insensitively
+                        if (href.toLowerCase().startsWith('www.')) {
+                            href = 'http://' + href;
+                        }
+                        return `<a href="${href}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+                    });
+
+                    if (newHtml !== text) {
+                        const replacementFragment = document.createDocumentFragment();
+                        const wrapper = document.createElement('div');
+                        wrapper.innerHTML = newHtml;
+                        while (wrapper.firstChild) {
+                            replacementFragment.appendChild(wrapper.firstChild);
+                        }
+                        node.parentNode.replaceChild(replacementFragment, node);
+                    }
+                } else if (node.nodeType === 1) {
+                    Array.from(node.childNodes).forEach(findAndReplace);
+                }
+            }
+
+            findAndReplace(tempDiv);
+            return tempDiv.innerHTML;
+        }
+
+
+        // --- 4. LAYOUT ENGINE ---
+        function calculateLayout() {
+            if (state.nodes.length === 0) return;
+            const coreNode = state.nodes[0];
+            positionNodeAndChildren(coreNode.id, config.canvasWidth / 2, 200);
+        }
+        
+        function positionNodeAndChildren(nodeId, x, y) {
+            const node = findNodeById(nodeId);
+            if (!node) return 0;
+            node.x = x;
+            node.y = y + node.jitterY;
+            const children = state.nodes.filter(n => n.parentId === nodeId);
+            if (children.length === 0) {
+                const tempEl = document.createElement('span');
+                tempEl.style.fontSize = config.branchStyles[node.branchIndex || 0].fontSizes[node.depth];
+                tempEl.style.fontFamily = config.branchStyles[node.branchIndex || 0].fontFamily;
+                tempEl.style.visibility = 'hidden';
+                tempEl.style.position = 'absolute';
+                tempEl.innerText = node.text;
+                document.body.appendChild(tempEl);
+                const textWidth = tempEl.offsetWidth + 24;
+                document.body.removeChild(tempEl);
+                node.width = Math.max(config.nodeWidth, textWidth);
+                return node.width;
+            }
+            let totalChildWidth = 0;
+            children.forEach(child => {
+                totalChildWidth += positionNodeAndChildren(child.id, 0, 0);
+            });
+            totalChildWidth += (children.length - 1) * config.hSpacing;
+            let currentX = x - totalChildWidth / 2;
+            children.forEach(child => {
+                const childSubtreeWidth = getSubtreeWidth(child.id);
+                const childX = currentX + childSubtreeWidth / 2;
+                const verticalDrop = config.vSpacing[node.depth] || config.vSpacing[config.vSpacing.length - 1];
+                const childY = y + verticalDrop;
+                positionNodeAndChildren(child.id, childX, childY);
+                currentX += childSubtreeWidth + config.hSpacing;
+            });
+            return totalChildWidth;
+        }
+
+        function getSubtreeWidth(nodeId) {
+            const node = findNodeById(nodeId);
+            const children = state.nodes.filter(n => n.parentId === nodeId);
+            if (children.length === 0) {
+                return node.width || config.nodeWidth;
+            }
+            let totalWidth = 0;
+            children.forEach(child => {
+                totalWidth += getSubtreeWidth(child.id);
+            });
+            return totalWidth + (children.length - 1) * config.hSpacing;
+        }
+
+
+        // --- 5. RENDERING ENGINE ---
+        function render() {
+            canvas.innerHTML = '';
+            if (state.nodes.length === 0) return;
+            state.nodes.forEach(node => {
+                node.parent = node.parentId !== null ? findNodeById(node.parentId) : null;
+            });
+            state.nodes.forEach(node => {
+                const nodeEl = document.createElement('div');
+                nodeEl.className = `node depth-${node.depth}`;
+                nodeEl.dataset.id = node.id;
+                nodeEl.style.left = `${node.x}px`;
+                nodeEl.style.top = `${node.y}px`;
+                nodeEl.style.transform = `translate(-50%, -50%)`;
+                if(node.width) nodeEl.style.width = `${node.width}px`;
+                
+                const textEl = document.createElement('div');
+                textEl.className = 'node-text';
+                textEl.textContent = node.text;
+                textEl.setAttribute('contenteditable', 'false');
+                
+                const style = config.branchStyles[node.branchIndex || 0];
+                textEl.style.fontFamily = style.fontFamily;
+                textEl.style.fontSize = style.fontSizes[node.depth];
+                if (node.depth === 1) textEl.style.fontWeight = '700';
+                nodeEl.appendChild(textEl);
+                
+                if (node.depth === 0) {
+                    if (node.text === node.placeholder) {
+                        nodeEl.style.backgroundColor = 'white';
+                        nodeEl.style.border = `${config.lineThickness[0]}px solid ${config.branchColors[2]}`;
+                        textEl.style.color = config.branchColors[2];
+                    }
+                } else if (node.depth > 0 && node.branchColor) {
+                    const borderThickness = config.lineThickness[node.depth - 1] || 1;
+                    nodeEl.style.borderWidth = `${borderThickness}px`;
+                    nodeEl.style.borderColor = node.branchColor;
+                    if (node.text !== node.placeholder) {
+                        const tint = config.backgroundTints[node.depth - 1] || 85;
+                        nodeEl.style.backgroundColor = lightenColor(node.branchColor, tint);
+                    } else {
+                        nodeEl.style.backgroundColor = lightenColor(node.branchColor, 90);
+                        textEl.style.color = node.branchColor;
+                    }
+                }
+                
+                const children = state.nodes.filter(n => n.parentId === node.id);
+                if (node.depth < 3 && children.length < 5) {
+                    let addBtnColor = node.branchColor;
+                    if (node.depth === 0) {
+                        const usedColors = new Set(children.map(c => c.branchColor));
+                        addBtnColor = config.branchColors.find(c => !usedColors.has(c));
+                    }
+                    const addBtn = createActionButton('+', 'add-btn', () => addChildNode(node.id), addBtnColor);
+                    nodeEl.appendChild(addBtn);
+                }
+                
+                const noteIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>`;
+                const noteBtnColor = node.branchColor || 'var(--core-node-color)';
+                const noteBtn = createActionButton(noteIconSVG, 'note-btn', () => openNoteEditor(node.id));
+                const noteSvg = noteBtn.querySelector('svg');
+                noteSvg.style.stroke = noteBtnColor;
+                noteSvg.style.fill = node.note ? noteBtnColor : 'white';
+                nodeEl.appendChild(noteBtn);
+
+                if (node.depth > 0) {
+                    const delBtn = createActionButton('&times;', 'del-btn', () => deleteNode(node.id), node.branchColor);
+                    nodeEl.appendChild(delBtn);
+                }
+                canvas.appendChild(nodeEl);
+
+                if (node.parent) {
+                    const lineEl = createLine(node.parent, node);
+                    canvas.appendChild(lineEl);
+                }
+            });
+        }
+
+        function createActionButton(html, className, onClick, color) {
+            const btn = document.createElement('button');
+            btn.className = `action-btn ${className}`;
+            btn.innerHTML = html;
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                onClick();
+            });
+            if (!className.includes('note-btn')) {
+                 btn.style.backgroundColor = color || '#6c757d';
+            }
+            return btn;
+        }
+
+        function createLine(sourceNode, targetNode) {
+            const lineEl = document.createElement('div');
+            lineEl.className = 'line';
+            const dx = targetNode.x - sourceNode.x;
+            const dy = targetNode.y - sourceNode.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+            const thickness = config.lineThickness[sourceNode.depth] || 1;
+            lineEl.style.height = `${thickness}px`;
+            if (targetNode.branchColor) {
+                lineEl.style.backgroundColor = targetNode.branchColor;
+            }
+            const adjustedY = sourceNode.y - (thickness / 2);
+            lineEl.style.transform = `translate(${sourceNode.x}px, ${adjustedY}px) rotate(${angle}deg)`;
+            lineEl.style.width = `${distance}px`;
+            return lineEl;
+        }
+
+        // --- 6. CORE LOGIC & ACTIONS ---
+        function createNode(text, parentId, depth) {
+            const id = state.nextId++;
+            const parent = findNodeById(parentId);
+            const jitterY = depth > 0 ? config.randomizedOffsets[id % config.randomizedOffsets.length] : 0;
+            let branchColor = null, branchIndex = 0;
+            if (depth === 1) {
+                const usedColors = new Set(state.nodes.filter(n => n.parentId === parentId).map(c => c.branchColor));
+                const availableColor = config.branchColors.find(c => !usedColors.has(c));
+                branchColor = availableColor;
+                branchIndex = config.branchColors.indexOf(availableColor) + 1;
+            } else if (parent) {
+                branchColor = parent.branchColor;
+                branchIndex = parent.branchIndex;
+            }
+            let nodeText, placeholder;
+            if (depth === 0) {
+                nodeText = text;
+                placeholder = text;
+            } else {
+                placeholder = config.placeholderTexts[state.placeholderIndex % config.placeholderTexts.length];
+                state.placeholderIndex++;
+                nodeText = placeholder;
+            }
+            return { id, text: nodeText, placeholder, parentId, parent, depth, x: 0, y: 0, note: '', jitterY, branchColor, branchIndex };
+        }
+
+        function addChildNode(parentId) {
+            const parentNode = findNodeById(parentId);
+            if (!parentNode || parentNode.depth >= 3) return;
+            const children = state.nodes.filter(n => n.parentId === parentId);
+            if (children.length >= 5) {
+                showMessage("A maximum of 5 branches per node is allowed.");
+                return;
+            }
+            const newNode = createNode(null, parentId, parentNode.depth + 1);
+            state.nodes.push(newNode);
+            updateAndRender();
+        }
+
+        function deleteNode(nodeId) {
+            if (nodeId === 0 && state.nodes.length > 1) {
+                showMessage("Cannot delete the main idea if it has branches. Please delete the branches first.");
+                return;
+            }
+            let nodesToDelete = new Set([nodeId]);
+            let queue = [nodeId];
+            while(queue.length > 0) {
+                const children = state.nodes.filter(n => n.parentId === queue.shift());
+                children.forEach(child => {
+                    nodesToDelete.add(child.id);
+                    queue.push(child.id);
+                });
+            }
+            state.nodes = state.nodes.filter(n => !nodesToDelete.has(n.id));
+            if (state.nodes.length === 0) {
+                startNewMap();
+            } else {
+                updateAndRender();
+            }
+        }
+
+        function findNodeById(id) {
+            return state.nodes.find(n => n.id === id) || null;
+        }
+
+        function updateAndRender() {
+            calculateLayout();
+            render();
+            saveStateToLocalStorage();
+        }
+
+        // --- 7. DATA PERSISTENCE & FILE I/O ---
+        function recenterView() {
+            if (state.nodes.length === 0) return;
+            const coreNode = state.nodes[0];
+            if (!coreNode) return;
+            const targetX = coreNode.x - (viewport.clientWidth / 2);
+            const targetY = coreNode.y - (viewport.clientHeight / 4);
+            viewport.scrollTo({ top: targetY, left: targetX, behavior: 'smooth' });
+        }
+        
+        function saveStateToLocalStorage() {
+            try {
+                const stateToSave = { ...state, nodes: state.nodes.map(({ parent, ...rest }) => rest) };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+            } catch (error) {
+                console.error("Could not save to local storage:", error);
+            }
+        }
+
+        function exportMindmapToFile() {
+            if (!state.authorName) {
+                nameInputOverlay.style.display = 'flex';
+                authorNameInput.focus();
+                return;
+            }
+
+            const stateToSave = { ...state, nodes: state.nodes.map(({ parent, ...rest }) => rest) };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(stateToSave, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            
+            const coreNode = state.nodes.find(n => n.depth === 0);
+            const coreValue = coreNode ? coreNode.text : 'My';
+            const sanitizedCoreValue = coreValue.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            const sanitizedAuthorName = state.authorName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", `${sanitizedAuthorName}_${sanitizedCoreValue}_mindmap.json`);
+            
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+            fabContainer.classList.remove('open');
+        }
+
+        function importMindmapFromFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const loadedState = JSON.parse(e.target.result);
+                    if (loadedState && loadedState.nodes && typeof loadedState.nextId === 'number') {
+                        state = loadedState;
+                        updateAndRender();
+                        setTimeout(recenterView, 100);
+                    } else {
+                        throw new Error("Invalid mindmap file format.");
+                    }
+                } catch (error) {
+                    console.error("Failed to load or parse mindmap file:", error);
+                    showMessage("Could not load file. It might be corrupted or in the wrong format.");
+                }
+            };
+            reader.readAsText(file);
+            fabContainer.classList.remove('open');
+            fileInput.value = '';
+        }
+
+        // --- 8. NODE EDITING & NOTES ---
+        function enableEditing(nodeEl, textEl) {
+            const nodeId = parseInt(nodeEl.dataset.id, 10);
+            const node = findNodeById(nodeId);
+            if (!node) return;
+            
+            nodeEl.classList.add('is-editing');
+
+            textEl.setAttribute('contenteditable', 'true');
+            if (textEl.textContent === node.placeholder) {
+                textEl.textContent = '';
+            }
+            textEl.focus();
+            document.execCommand('selectAll', false, null);
+
+            requestAnimationFrame(() => {
+                nodeEl.scrollIntoView({
+                    behavior: 'auto',
+                    block: 'center',
+                    inline: 'center'
+                });
+            });
+
+            function onBlur() {
+                nodeEl.classList.remove('is-editing');
+                textEl.setAttribute('contenteditable', 'false');
+                if (node) {
+                    node.text = textEl.textContent.trim() || node.placeholder;
+                }
+                textEl.removeEventListener('blur', onBlur);
+                textEl.removeEventListener('keydown', onKeydown);
+                state.editingNodeId = null;
+                updateAndRender();
+            }
+
+            function onKeydown(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    textEl.blur();
+                }
+            }
+
+            textEl.addEventListener('blur', onBlur);
+            textEl.addEventListener('keydown', onKeydown);
+        }
+        
+        function resizeImage(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        const maxDim = config.imageResizeDimension;
+                        let { width, height } = img;
+                        if (width > height) {
+                            if (width > maxDim) { height *= maxDim / width; width = maxDim; }
+                        } else {
+                            if (height > maxDim) { width *= maxDim / height; height = maxDim; }
+                        }
+                        canvas.width = width;
+                        canvas.height = height;
+                        ctx.drawImage(img, 0, 0, width, height);
+                        resolve(canvas.toDataURL('image/png'));
+                    };
+                    img.onerror = reject;
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function insertImageIntoNote(dataURL) {
+            const noteContent = document.getElementById('note-content');
+            noteContent.focus();
+
+            // Restore saved selection if it exists
+            const selection = window.getSelection();
+            if (state.savedSelection) {
+                selection.removeAllRanges();
+                selection.addRange(state.savedSelection);
+            }
+
+            const range = selection.getRangeAt(0);
+            range.deleteContents();
+
+            const img = document.createElement('img');
+            img.src = dataURL;
+
+            range.insertNode(img);
+
+            // Move cursor after the image
+            range.setStartAfter(img);
+            range.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+
+        function openNoteEditor(nodeId) {
+            state.editingNodeId = nodeId;
+            const node = findNodeById(nodeId);
+            if (!node) return;
+            
+            const branchColor = node.branchColor || 'var(--core-node-color)';
+            noteTitle.textContent = `Note for: ${node.text}`;
+            noteTitle.style.color = branchColor;
+            noteConfirmBtn.style.backgroundColor = branchColor;
+            noteCancelBtn.style.backgroundColor = branchColor;
+
+            const noteContent = document.getElementById('note-content');
+            noteContent.innerHTML = node.note;
+            noteEditorOverlay.style.display = 'flex';
+            noteContent.focus();
+        }
+
+        function hideNoteEditor() {
+            noteEditorOverlay.style.display = 'none';
+            state.editingNodeId = null;
+            state.savedSelection = null;
+            updateAndRender();
+        }
+
+        function confirmNote() {
+            const node = findNodeById(state.editingNodeId);
+            if (node) {
+                const rawHTML = document.getElementById('note-content').innerHTML;
+                node.note = linkifyNoteContent(rawHTML);
+            }
+            hideNoteEditor();
+        }
+        
+        function cancelNote() {
+            hideNoteEditor();
+        }
+
+
+        // --- 9. PRINT FUNCTION (UPDATED & SECURE) ---
+        async function printMindmap() {
+            fabContainer.classList.remove('open');
+            const originalBtnContent = printBtn.innerHTML;
+            const originalBtnTitle = printBtn.title;
+            printBtn.innerHTML = '...';
+            printBtn.title = 'Generating PDF...';
+            printBtn.disabled = true;
+
+            const { jsPDF } = window.jspdf;
+            const padding = 100;
+
+            // Calculate bounding box of all nodes
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            state.nodes.forEach(node => {
+                const nodeWidth = node.width || config.nodeWidth;
+                const nodeHeight = config.nodeHeight;
+                minX = Math.min(minX, node.x - nodeWidth / 2);
+                maxX = Math.max(maxX, node.x + nodeWidth / 2);
+                minY = Math.min(minY, node.y - nodeHeight / 2);
+                maxY = Math.max(maxY, node.y + nodeHeight / 2);
+            });
+
+            const captureWidth = maxX - minX + padding * 2;
+            const captureHeight = maxY - minY + padding * 2;
+
+            const mainCanvas = await html2canvas(document.querySelector("#mindmap-canvas"), {
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#ffffff',
+                scale: 2,
+                x: minX - padding,
+                y: minY - padding,
+                width: captureWidth,
+                height: captureHeight
+            });
+            
+            const imgData = mainCanvas.toDataURL('image/jpeg', 0.8);
+            const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+            const a4_width = doc.internal.pageSize.getWidth();
+            const a4_height = doc.internal.pageSize.getHeight();
+            const img_ratio = mainCanvas.width / mainCanvas.height;
+            let img_w, img_h;
+
+            if (img_ratio > a4_width / a4_height) {
+                img_w = a4_width - 20;
+                img_h = img_w / img_ratio;
+            } else {
+                img_h = a4_height - 20;
+                img_w = img_h * img_ratio;
+            }
+            
+            const x_pos = (a4_width - img_w) / 2;
+            const y_pos = (a4_height - img_h) / 2;
+
+            const coreNode = state.nodes.find(n => n.depth === 0);
+            const pageHeader = coreNode ? coreNode.text : 'My Mindmap';
+
+            function addHeader(docInstance) {
+                docInstance.setFontSize(14);
+                docInstance.setTextColor('#1d3557');
+                docInstance.text(pageHeader, 10, 10);
+            }
+
+            addHeader(doc);
+            doc.addImage(imgData, 'JPEG', x_pos, y_pos, img_w, img_h);
+
+            const notesWithContent = state.nodes.filter(n => n.note && n.note.trim() !== '' && n.note.trim() !== '<br>');
+
+            if (notesWithContent.length > 0) {
+                doc.addPage('a4', 'portrait');
+                addHeader(doc);
+
+                const pageW = doc.internal.pageSize.getWidth();
+                const pageH = doc.internal.pageSize.getHeight();
+                const margin = 10;
+                const contentWidth = pageW - (margin * 2);
+                let currentY = 20;
+
+                const tempNoteContainer = document.createElement('div');
+                tempNoteContainer.style.position = 'absolute';
+                tempNoteContainer.style.left = '-9999px';
+                tempNoteContainer.style.top = '0';
+                tempNoteContainer.style.width = contentWidth * 3.78 + 'px'; // mm to px
+                document.body.appendChild(tempNoteContainer);
+
+                for (const noteNode of notesWithContent) {
+                    let path = [];
+                    let current = noteNode;
+                    while(current) {
+                        path.unshift(current.text || '');
+                        current = current.parent;
+                    }
+                    const title = path.join(' > ');
+                    
+                    doc.setFontSize(10);
+                    doc.setFont('helvetica', 'bold');
+                    const titleLines = doc.splitTextToSize(title, contentWidth - 5);
+                    const titleHeight = (titleLines.length * 4) + 5;
+
+                    const noteRenderDiv = document.createElement('div');
+                    noteRenderDiv.style.padding = '5px';
+                    noteRenderDiv.style.background = 'white';
+                    noteRenderDiv.style.fontFamily = 'sans-serif';
+                    noteRenderDiv.style.fontSize = '16px';
+                    noteRenderDiv.style.lineHeight = '1.5';
+                    
+                    // --- THIS IS THE SECURE CHANGE ---
+                    // Sanitize the HTML content before injecting it into the DOM.
+                    noteRenderDiv.innerHTML = DOMPurify.sanitize(noteNode.note);
+
+                    tempNoteContainer.appendChild(noteRenderDiv);
+
+                    const noteCanvas = await html2canvas(noteRenderDiv, { scale: 2, backgroundColor: null, width: noteRenderDiv.scrollWidth });
+                    const noteImgData = noteCanvas.toDataURL('image/png');
+                    const noteImgHeightMM = (noteCanvas.height / noteCanvas.width) * (contentWidth - 5);
+                    
+                    tempNoteContainer.innerHTML = '';
+
+                    const totalNoteHeight = titleHeight + noteImgHeightMM + 10;
+                    if (currentY + totalNoteHeight > pageH - margin) {
+                        doc.addPage('a4', 'portrait');
+                        addHeader(doc);
+                        currentY = 20;
+                    }
+
+                    const borderColor = noteNode.branchColor || '#000000';
+                    doc.setDrawColor(borderColor);
+                    doc.setLineWidth(0.5);
+                    doc.rect(margin, currentY, contentWidth, totalNoteHeight - 5); 
+
+                    doc.setTextColor('#000000');
+                    doc.text(titleLines, margin + 2.5, currentY + 5);
+                    doc.addImage(noteImgData, 'PNG', margin + 2.5, currentY + titleHeight, contentWidth - 5, noteImgHeightMM);
+                    currentY += totalNoteHeight;
+                }
+                
+                document.body.removeChild(tempNoteContainer);
+            }
+
+            const sanitizedFilename = pageHeader.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            doc.save(`${sanitizedFilename}_mindmap.pdf`);
+            
+            printBtn.innerHTML = originalBtnContent;
+            printBtn.title = originalBtnTitle;
+            printBtn.disabled = false;
+        }
+
+
+        // --- 10. EVENT LISTENERS ---
+        let lastTap = 0;
+        // Listener for mobile double-tap
+        canvas.addEventListener('touchend', (e) => {
+            if (e.target.closest('.action-btn')) return;
+            const target = e.target;
+            if (target.classList.contains('node-text')) {
+                const currentTime = new Date().getTime();
+                const tapLength = currentTime - lastTap;
+                if (tapLength < 300 && tapLength > 0) {
+                    const nodeEl = target.closest('.node');
+                    enableEditing(nodeEl, target);
+                    e.preventDefault();
+                }
+                lastTap = currentTime;
+            }
+        });
+
+        // Listener for desktop double-click
+        canvas.addEventListener('dblclick', (e) => {
+            if (e.target.closest('.action-btn')) return;
+            const target = e.target;
+            if (target.classList.contains('node-text')) {
+                const nodeEl = target.closest('.node');
+                enableEditing(nodeEl, target);
+                e.preventDefault();
+            }
+        });
+        
+        noteConfirmBtn.addEventListener('click', confirmNote);
+        noteCancelBtn.addEventListener('click', cancelNote);
+
+        noteEditorOverlay.addEventListener('click', (e) => {
+            if (e.target === noteEditorOverlay) cancelNote();
+        });
+
+        noteContent.addEventListener('click', (event) => {
+            if (event.target.tagName === 'A') {
+                event.preventDefault();
+                const url = event.target.getAttribute('href');
+                if (url) {
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                }
+            }
+        });
+
+        noteContent.addEventListener('focusout', () => {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                state.savedSelection = selection.getRangeAt(0);
+            }
+        });
+
+        addImageBtn.addEventListener('click', () => {
+            document.getElementById('note-content').focus();
+            imageInput.click();
+        });
+
+        imageInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                try {
+                    const resizedDataUrl = await resizeImage(file);
+                    insertImageIntoNote(resizedDataUrl);
+                } catch (error) {
+                    console.error("Image processing failed:", error);
+                    showMessage("Could not process the selected image.");
+                }
+            }
+            imageInput.value = ''; // Reset for next use
+        });
+
+        nameSaveBtn.addEventListener('click', () => {
+            const name = authorNameInput.value.trim();
+            if (name) {
+                state.authorName = name;
+                nameInputOverlay.style.display = 'none';
+                exportMindmapToFile();
+            } else {
+                showMessage("Please enter your name to save the file.");
+            }
+        });
+
+        alertCloseBtn.addEventListener('click', hideMessage);
+        alertOverlay.addEventListener('click', (e) => {
+            if (e.target === alertOverlay) hideMessage();
+        });
+        fabMainBtn.addEventListener('click', () => fabContainer.classList.toggle('open'));
+        exportBtn.addEventListener('click', exportMindmapToFile);
+        importBtn.addEventListener('click', () => fileInput.click());
+        printBtn.addEventListener('click', printMindmap);
+        recenterBtn.addEventListener('click', () => {
+            recenterView();
+            fabContainer.classList.remove('open');
+        });
+        fileInput.addEventListener('change', importMindmapFromFile);
+        
+        // --- 11. INITIALIZATION ---
+        function startNewMap() {
+            state.nodes = [];
+            state.nextId = 0;
+            state.placeholderIndex = 0;
+            state.authorName = null;
+            const coreNode = createNode('Your Big Idea', null, 0);
+            state.nodes.push(coreNode);
+            addChildNode(coreNode.id);
+            addChildNode(coreNode.id);
+            updateAndRender();
+            setTimeout(recenterView, 100);
+        }
+
+        function loadFromStorage() {
+             try {
+                const savedData = localStorage.getItem(STORAGE_KEY);
+                if (savedData) {
+                    const loadedState = JSON.parse(savedData);
+                     if (loadedState && loadedState.nodes && loadedState.nodes.length > 0) {
+                        state = loadedState;
+                        updateAndRender();
+                        setTimeout(recenterView, 100);
+                        return true;
+                     }
+                }
+            } catch (error) {
+                console.error("Failed to load state from local storage:", error);
+            }
+            return false;
+        }
+
+        function init() {
+            const hasSavedData = localStorage.getItem(STORAGE_KEY);
+
+            if (hasSavedData) {
+                startupChoiceOverlay.style.display = 'flex';
+            } else {
+                instructionOverlay.style.display = 'flex';
+            }
+        }
+
+        startupContinueBtn.addEventListener('click', () => {
+            startupChoiceOverlay.style.display = 'none';
+            if (!loadFromStorage()) {
+                startNewMap(); // Fallback if loading fails
+            }
+        });
+
+        startupNewBtn.addEventListener('click', () => {
+            startupChoiceOverlay.style.display = 'none';
+            instructionOverlay.style.display = 'flex';
+        });
+
+        instructionCloseBtn.addEventListener('click', () => {
+            instructionOverlay.style.display = 'none';
+            startNewMap();
+        });
+
+        init();
+    });
+    </script>
+</body>
+</html>
